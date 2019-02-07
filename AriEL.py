@@ -10,8 +10,6 @@ from nlp import GrammarLanguageModel, Vocabulary, addEndTokenToGrammar, \
                 NltkGrammarSampler, tokenize
 
 
-
-
 logger = logging.getLogger(__name__)
 
 class SentenceEmbedding(object):
