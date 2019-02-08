@@ -271,8 +271,9 @@ class probsToPoint(object):
 def test_vAriEL_Encoder_model():
     #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
     vocabSize = 2
-    max_senLen = 9
+    max_senLen = 3
     batchSize = 3
+    latDim = 9
     
     questions = []
     for _ in range(batchSize):
@@ -291,7 +292,7 @@ def test_vAriEL_Encoder_model():
     print('')
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Encoder_model(vocabSize = vocabSize + 2, embDim = 2)
+    model = vAriEL_Encoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim)
     #print(partialModel.predict(question)[0])
     for layer in model.predict(padded_questions):
         print(layer)
@@ -302,14 +303,132 @@ def test_vAriEL_Encoder_model():
 
 
 
+
+def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10):    
     
+    input_point = Input(shape=(latDim,), name='point')
+        
+    # FIXME: I think arguments passed this way won't be saved with the model
+    # follow instead: https://github.com/keras-team/keras/issues/1879
+    LSTM_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(input_point)
+      
+    lstm = LSTM(vocabSize, return_sequences=True)
+    lstm_output = lstm(LSTM_starter)    
+    first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)
+    
+    probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=lstm)([first_softmax, input_point])
+    model = Model(inputs=input_point, outputs=probs)
+    return model
+
+
+class pointToProbs(object):
+    def __init__(self, vocabSize=2, latDim=3, embDim = 2, max_senLen = 10, rnn=None, output_type = 'both'):
+        """        
+        inputs:
+            output_type: 'tokens', 'softmaxes' or 'both'
+        """
+        
+        
+        #super(vAriEL_Encoder, self).__init__()
+        self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
+                             embDim=embDim, max_senLen=max_senLen, 
+                             rnn=rnn, output_type='both')
+    
+    def __call__(self, inputs):
+        first_softmax, input_point = inputs
+
+        
+        def upTheTree(inputs):
+            one_softmax, input_point = inputs
+            
+            final_softmaxes = one_softmax
+            final_tokens = None
+            curDim = 0
+            while True:
+            
+                cumsum = K.cumsum(one_softmax, axis=2)
+                cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
+                
+                value_of_interest =  input_point[:,curDim]*K.ones_like(one_softmax)
+                larger = tf.greater(cumsum, value_of_interest)
+                larger_exclusive = tf.greater(cumsum_exclusive, value_of_interest)
+                
+                xor = tf.logical_xor(larger, larger_exclusive)
+                xor = tf.cast(xor, tf.float32)
+                token = K.argmax(xor, axis=2)
+    
+                embed = Embedding(self.vocabSize, self.embDim)(token)
+                rnn_output = self.rnn(embed)
+                one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
+                
+                final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1)
+                
+                if final_tokens == None:
+                    final_tokens = token
+                else:
+                    final_tokens = tf.concat([final_tokens, token], axis=1)
+                
+                # NOTE: at each iteration, change the dimension
+                curDim += 1
+                if curDim >= self.latDim:
+                    curDim = 0
+                
+                if curDim == 2:
+                    break
+            
+            return [cumsum, one_softmax, final_softmaxes, final_tokens]
+
+        # FIXME: give two options: the model giving back the whol softmaxes
+        # sequence, or the model giving back the sequence of tokens 
+        #tokens, softmaxes = Lambda(upTheTree)([first_softmax, input_point])
+        output = Lambda(upTheTree)([first_softmax, input_point])
+        
+        #if self.output_type == 'tokens':
+        #    output = tokens
+        #elif self.output_type == 'softmaxes':
+        #    output = softmaxes
+        #elif self.output_type == 'both':
+        #    output = [tokens, softmaxes]
+        #else:
+        #    raise ValueError('the output_type specified is not implemented!')
+        
+        return output
+
+
+
+
+def test_vAriEL_Decoder_model():
+    #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
+    vocabSize = 2
+    max_senLen = 9
+    batchSize = 1
+    latDim = 3
+    
+    
+    questions = np.random.rand(batchSize, latDim)
+     
+    print(questions)
+    print('')
+    print('')
+    print('-----------------------------------------------------------------------')
+    print('')
+    
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim, max_senLen = max_senLen)
+    #print(partialModel.predict(question)[0])
+    for layer in model.predict(questions):
+        print(layer)
+        print('')
+        print('')
+        print('')
     
     
     
 
 if __name__ == '__main__':
 
-    test_vAriEL_Encoder_model()
+    #test_vAriEL_Encoder_model()
+    test_vAriEL_Decoder_model()
     
     # FIXME: first token of the question, to make the first siftmax appear
     # hide it inside the code, so the user can simply plug a sentence to the model
