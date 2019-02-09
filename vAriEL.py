@@ -302,8 +302,6 @@ def test_vAriEL_Encoder_model():
 
 
 
-
-
 def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10):    
     
     input_point = Input(shape=(latDim,), name='point')
@@ -346,12 +344,18 @@ class pointToProbs(object):
             final_softmaxes = one_softmax
             final_tokens = None
             curDim = 0
-            while True:
+            
+            # NOTE: since ending on the EOS token would fail for mini-batches, 
+            # the algorithm stops at a maxLen when the length of the sentence 
+            # is maxLen
+            for _ in range(self.max_senLen):
             
                 cumsum = K.cumsum(one_softmax, axis=2)
                 cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
                 
-                value_of_interest =  unfolding_point[:,curDim]*K.ones_like(one_softmax)
+                value_of_interest = K.sum(K.one_hot(curDim, self.latDim)*unfolding_point)
+                value_of_interest = value_of_interest*K.ones_like(one_softmax)
+                
                 larger = tf.greater(cumsum, value_of_interest)
                 larger_exclusive = tf.greater(cumsum_exclusive, value_of_interest)
                 
@@ -372,9 +376,7 @@ class pointToProbs(object):
                 ones_padding = K.squeeze(ones_padding, axis=1)
                 p_iti = tf.concat([one_softmax[:, :, curDim], ones_padding], 1)
                 unfolding_point = tf.divide(unfolding_point, p_iti)
-                unfolding_point = K.squeeze(unfolding_point, axis=1)
-                
-                
+                #unfolding_point = K.squeeze(unfolding_point, axis=1)
                 
                 # get the softmax for the next iteration
                 embed = Embedding(self.vocabSize, self.embDim)(token)
@@ -393,10 +395,13 @@ class pointToProbs(object):
                 if curDim >= self.latDim:
                     curDim = 0
                 
-                if curDim == 2:
-                    break
+                #if curDim == 1:
+                #    break
             
-            return [value_of_interest, cumsum, one_softmax, final_softmaxes, final_tokens, c_iti, p_iti, input_point, unfolding_point]
+            # remove last softmax, since the initial was given by the an initial
+            # zero vector
+            final_softmaxes = final_softmaxes[:,:-1,:]
+            return [input_point, unfolding_point, value_of_interest, final_softmaxes, final_tokens]
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
@@ -419,10 +424,10 @@ class pointToProbs(object):
 
 def test_vAriEL_Decoder_model():
     #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
-    vocabSize = 2
-    max_senLen = 9
-    batchSize = 1
-    latDim = 3
+    vocabSize = 3
+    max_senLen = 5
+    batchSize = 2
+    latDim = 4
     
     
     questions = np.random.rand(batchSize, latDim)
