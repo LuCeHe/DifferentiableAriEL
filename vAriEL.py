@@ -341,6 +341,8 @@ class pointToProbs(object):
         def upTheTree(inputs):
             one_softmax, input_point = inputs
             
+            unfolding_point = input_point
+            
             final_softmaxes = one_softmax
             final_tokens = None
             curDim = 0
@@ -349,14 +351,32 @@ class pointToProbs(object):
                 cumsum = K.cumsum(one_softmax, axis=2)
                 cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
                 
-                value_of_interest =  input_point[:,curDim]*K.ones_like(one_softmax)
+                value_of_interest =  unfolding_point[:,curDim]*K.ones_like(one_softmax)
                 larger = tf.greater(cumsum, value_of_interest)
                 larger_exclusive = tf.greater(cumsum_exclusive, value_of_interest)
                 
+                
+                # determine the token selected
                 xor = tf.logical_xor(larger, larger_exclusive)
                 xor = tf.cast(xor, tf.float32)
                 token = K.argmax(xor, axis=2)
-    
+                
+                # the c_iti value has to be subtracted to the point for the 
+                # next round on this dimension
+                c_iti = tf.matmul(xor, cumsum_exclusive, transpose_b=True)*K.one_hot(curDim, self.latDim)
+                unfolding_point = tf.subtract(unfolding_point, c_iti)
+                
+                # the p_iti value has to be divided to the point for the next
+                # round on this dimension                
+                ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim - 1})(c_iti)
+                ones_padding = K.squeeze(ones_padding, axis=1)
+                p_iti = tf.concat([one_softmax[:, :, curDim], ones_padding], 1)
+                unfolding_point = tf.divide(unfolding_point, p_iti)
+                unfolding_point = K.squeeze(unfolding_point, axis=1)
+                
+                
+                
+                # get the softmax for the next iteration
                 embed = Embedding(self.vocabSize, self.embDim)(token)
                 rnn_output = self.rnn(embed)
                 one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
@@ -376,7 +396,7 @@ class pointToProbs(object):
                 if curDim == 2:
                     break
             
-            return [cumsum, one_softmax, final_softmaxes, final_tokens]
+            return [value_of_interest, cumsum, one_softmax, final_softmaxes, final_tokens, c_iti, p_iti, input_point, unfolding_point]
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
@@ -418,8 +438,6 @@ def test_vAriEL_Decoder_model():
     #print(partialModel.predict(question)[0])
     for layer in model.predict(questions):
         print(layer)
-        print('')
-        print('')
         print('')
     
     
