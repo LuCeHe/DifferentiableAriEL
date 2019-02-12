@@ -185,6 +185,11 @@ def dynamic_ones(x, d):
     batch_size = tf.shape(x)[0]
     return tf.ones(tf.stack([batch_size, 1, d]))
 
+def dynamic_one_hot(x, d, pos):
+    batch_size = tf.shape(x)[0]
+    one_hots = tf.ones(tf.stack([batch_size, 1, d]))*tf.one_hot(pos, d)
+    return one_hots
+
 
 def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4):    
     
@@ -344,17 +349,20 @@ class pointToProbs(object):
             final_softmaxes = one_softmax
             final_tokens = None
             curDim = 0
-            
+            counter = 0
             # NOTE: since ending on the EOS token would fail for mini-batches, 
             # the algorithm stops at a maxLen when the length of the sentence 
             # is maxLen
             for _ in range(self.max_senLen):
             
                 cumsum = K.cumsum(one_softmax, axis=2)
+                cumsum = K.squeeze(cumsum, axis=1)
                 cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
+                cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
                 
-                value_of_interest = K.sum(K.one_hot(curDim, self.latDim)*unfolding_point)
-                value_of_interest = value_of_interest*K.ones_like(one_softmax)
+                #print(K.int_shape(unfolding_point))
+                expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
+                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)
                 
                 larger = tf.greater(cumsum, value_of_interest)
                 larger_exclusive = tf.greater(cumsum_exclusive, value_of_interest)
@@ -363,45 +371,65 @@ class pointToProbs(object):
                 # determine the token selected
                 xor = tf.logical_xor(larger, larger_exclusive)
                 xor = tf.cast(xor, tf.float32)
-                token = K.argmax(xor, axis=2)
+                token = K.argmax(xor, axis=1)
+                token = tf.expand_dims(token, axis=1)
+                
+                print('xor:               ', K.int_shape(xor))
+                print('cumsum_exclusive:  ', K.int_shape(cumsum_exclusive))
                 
                 # the c_iti value has to be subtracted to the point for the 
                 # next round on this dimension
-                c_iti = tf.matmul(xor, cumsum_exclusive, transpose_b=True)*K.one_hot(curDim, self.latDim)
+                zeros_left = Lambda(dynamic_zeros, arguments={'d': curDim})(first_softmax)
+                zeros_right = Lambda(dynamic_zeros, arguments={'d': self.latDim - curDim - 1})(first_softmax)
+                
+                # FIXME: the following matrix multiplication gives a suspitious 
+                # (None, None) shape
+                c_iti_value = tf.matmul(xor, cumsum_exclusive)  
+                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                one_hots = tf.squeeze(one_hots, axis=1)
+                
+                c_iti = c_iti_value*one_hots   #K.one_hot(curDim, self.latDim)   # #)$UF@J$PO@%$^&^%@#%^&^@
+                
+                #c_iti_attempt = tf.concat([zeros_left, c_iti_value, zeros_right], 1, name='concat_c_iti')
+                
+                print('c_iti_value:       ', K.int_shape(c_iti_value))
+                print('c_iti:             ', K.int_shape(c_iti))
                 unfolding_point = tf.subtract(unfolding_point, c_iti)
                 
                 # the p_iti value has to be divided to the point for the next
                 # round on this dimension                
-                ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim - 1})(c_iti)
-                ones_padding = K.squeeze(ones_padding, axis=1)
-                p_iti = tf.concat([one_softmax[:, :, curDim], ones_padding], 1)
+                ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim - 1})(first_softmax)
+                ones_padding = tf.squeeze(ones_padding, axis=1, name='squeze_ones')
+                p_iti = tf.concat([one_softmax[:, :, curDim], ones_padding], 1)     # #)$UF@J$PO@%$^&^%@#%^&^@
                 unfolding_point = tf.divide(unfolding_point, p_iti)
-                #unfolding_point = K.squeeze(unfolding_point, axis=1)
                 
                 # get the softmax for the next iteration
                 embed = Embedding(self.vocabSize, self.embDim)(token)
                 rnn_output = self.rnn(embed)
                 one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
                 
-                final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1)
+                final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1, name='concat_softmaxes')
                 
                 if final_tokens == None:
                     final_tokens = token
                 else:
-                    final_tokens = tf.concat([final_tokens, token], axis=1)
+                    final_tokens = tf.concat([final_tokens, token], axis=1, name='concat_tokens')
                 
                 # NOTE: at each iteration, change the dimension
                 curDim += 1
+                counter += 1
                 if curDim >= self.latDim:
                     curDim = 0
                 
-                #if curDim == 1:
-                #    break
+                if counter == 1:
+                    break
             
             # remove last softmax, since the initial was given by the an initial
             # zero vector
             final_softmaxes = final_softmaxes[:,:-1,:]
-            return [input_point, unfolding_point, value_of_interest, final_softmaxes, final_tokens]
+            
+            #return [value_of_interest, one_softmax, cumsum, final_tokens, input_point, unfolding_point]
+            return  [unfolding_point, c_iti, p_iti, xor, cumsum_exclusive, one_hots, c_iti_value, one_hots]
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
@@ -426,7 +454,7 @@ def test_vAriEL_Decoder_model():
     #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
     vocabSize = 3
     max_senLen = 5
-    batchSize = 2
+    batchSize = 1
     latDim = 4
     
     
