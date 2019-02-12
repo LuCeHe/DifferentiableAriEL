@@ -384,18 +384,32 @@ class pointToProbs(object):
                 
                 # FIXME: the following matrix multiplication gives a suspitious 
                 # (None, None) shape
-                c_iti_value = tf.matmul(xor, cumsum_exclusive)  
-                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
-                one_hots = tf.squeeze(one_hots, axis=1)
+                #c_iti_value = tf.reduce_sum(tf.matmul(xor, cumsum_exclusive, name='mult_xor_cumsum', transpose_a=True), axis=1)
+                #print('c_iti_value:       ', K.int_shape(c_iti_value))
+                #c_iti_value = tf.expand_dims(c_iti_value, axis=1)
+                #print('c_iti_value:       ', K.int_shape(c_iti_value))
+                #one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                #one_hots = tf.squeeze(one_hots, axis=1)
+                #print('one_hots:          ', K.int_shape(one_hots))
                 
-                c_iti = c_iti_value*one_hots   #K.one_hot(curDim, self.latDim)   # #)$UF@J$PO@%$^&^%@#%^&^@
+                #c_iti = c_iti_value*one_hots   #K.one_hot(curDim, self.latDim)   # #)$UF@J$PO@%$^&^%@#%^&^@
                 
                 #c_iti_attempt = tf.concat([zeros_left, c_iti_value, zeros_right], 1, name='concat_c_iti')
                 
+                c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
                 print('c_iti_value:       ', K.int_shape(c_iti_value))
+                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                one_hots = tf.squeeze(one_hots, axis=1)
+                
+                
+                c_iti = c_iti_value*one_hots
+                # funcional but wrong:
+                #c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
+                #c_iti = c_iti_value*K.one_hot(curDim, self.latDim)
+                
                 print('c_iti:             ', K.int_shape(c_iti))
                 unfolding_point = tf.subtract(unfolding_point, c_iti)
-                
+                print('unfolding_point:   ', K.int_shape(unfolding_point))                
                 # the p_iti value has to be divided to the point for the next
                 # round on this dimension                
                 ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim - 1})(first_softmax)
@@ -409,6 +423,7 @@ class pointToProbs(object):
                 one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
                 
                 final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1, name='concat_softmaxes')
+                print('final_softmaxes:   ', K.int_shape(final_softmaxes))
                 
                 if final_tokens == None:
                     final_tokens = token
@@ -429,7 +444,7 @@ class pointToProbs(object):
             final_softmaxes = final_softmaxes[:,:-1,:]
             
             #return [value_of_interest, one_softmax, cumsum, final_tokens, input_point, unfolding_point]
-            return  [unfolding_point, c_iti, p_iti, xor, cumsum_exclusive, one_hots, c_iti_value, one_hots]
+            return  [unfolding_point, c_iti, p_iti, xor, cumsum_exclusive]
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
