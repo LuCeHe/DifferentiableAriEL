@@ -370,51 +370,38 @@ class pointToProbs(object):
                 
                 # determine the token selected
                 xor = tf.logical_xor(larger, larger_exclusive)
-                xor = tf.cast(xor, tf.float32)
+                xor = tf.cast(xor, tf.float32)                
                 token = K.argmax(xor, axis=1)
                 token = tf.expand_dims(token, axis=1)
                 
-                print('xor:               ', K.int_shape(xor))
-                print('cumsum_exclusive:  ', K.int_shape(cumsum_exclusive))
+                # expand dimensions to be able to performa a proper matrix 
+                # multiplication after
+                xor = tf.expand_dims(xor, axis=1)
+                cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)           
                 
                 # the c_iti value has to be subtracted to the point for the 
-                # next round on this dimension
-                zeros_left = Lambda(dynamic_zeros, arguments={'d': curDim})(first_softmax)
-                zeros_right = Lambda(dynamic_zeros, arguments={'d': self.latDim - curDim - 1})(first_softmax)
-                
-                # FIXME: the following matrix multiplication gives a suspitious 
-                # (None, None) shape
-                #c_iti_value = tf.reduce_sum(tf.matmul(xor, cumsum_exclusive, name='mult_xor_cumsum', transpose_a=True), axis=1)
-                #print('c_iti_value:       ', K.int_shape(c_iti_value))
-                #c_iti_value = tf.expand_dims(c_iti_value, axis=1)
-                #print('c_iti_value:       ', K.int_shape(c_iti_value))
-                #one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
-                #one_hots = tf.squeeze(one_hots, axis=1)
-                #print('one_hots:          ', K.int_shape(one_hots))
-                
-                #c_iti = c_iti_value*one_hots   #K.one_hot(curDim, self.latDim)   # #)$UF@J$PO@%$^&^%@#%^&^@
-                
-                #c_iti_attempt = tf.concat([zeros_left, c_iti_value, zeros_right], 1, name='concat_c_iti')
-                
+                # next round on this dimension                
                 c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
-                print('c_iti_value:       ', K.int_shape(c_iti_value))
+                c_iti_value = tf.squeeze(c_iti_value, axis=1)
                 one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
                 one_hots = tf.squeeze(one_hots, axis=1)
                 
-                
                 c_iti = c_iti_value*one_hots
-                # funcional but wrong:
-                #c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
-                #c_iti = c_iti_value*K.one_hot(curDim, self.latDim)
                 
-                print('c_iti:             ', K.int_shape(c_iti))
                 unfolding_point = tf.subtract(unfolding_point, c_iti)
-                print('unfolding_point:   ', K.int_shape(unfolding_point))                
+                
                 # the p_iti value has to be divided to the point for the next
                 # round on this dimension                
-                ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim - 1})(first_softmax)
-                ones_padding = tf.squeeze(ones_padding, axis=1, name='squeze_ones')
-                p_iti = tf.concat([one_softmax[:, :, curDim], ones_padding], 1)     # #)$UF@J$PO@%$^&^%@#%^&^@
+                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                one_hots = tf.squeeze(one_hots, axis=1)
+                p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
+                p_iti_value = K.squeeze(p_iti_value, axis=1)
+                p_iti_and_zeros = p_iti_value*one_hots
+                ones = Lambda(dynamic_ones, arguments={'d': self.latDim})(first_softmax)
+                ones = K.squeeze(ones, axis=1)
+                p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
+                p_iti = tf.subtract(p_iti_plus_ones, one_hots)
+                
                 unfolding_point = tf.divide(unfolding_point, p_iti)
                 
                 # get the softmax for the next iteration
@@ -423,7 +410,6 @@ class pointToProbs(object):
                 one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
                 
                 final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1, name='concat_softmaxes')
-                print('final_softmaxes:   ', K.int_shape(final_softmaxes))
                 
                 if final_tokens == None:
                     final_tokens = token
@@ -432,33 +418,27 @@ class pointToProbs(object):
                 
                 # NOTE: at each iteration, change the dimension
                 curDim += 1
-                counter += 1
                 if curDim >= self.latDim:
                     curDim = 0
-                
-                if counter == 1:
-                    break
             
             # remove last softmax, since the initial was given by the an initial
             # zero vector
             final_softmaxes = final_softmaxes[:,:-1,:]
             
-            #return [value_of_interest, one_softmax, cumsum, final_tokens, input_point, unfolding_point]
-            return  [unfolding_point, c_iti, p_iti, xor, cumsum_exclusive]
+            return  [final_tokens, final_softmaxes]
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
-        #tokens, softmaxes = Lambda(upTheTree)([first_softmax, input_point])
-        output = Lambda(upTheTree)([first_softmax, input_point])
+        tokens, softmaxes = Lambda(upTheTree)([first_softmax, input_point])
         
-        #if self.output_type == 'tokens':
-        #    output = tokens
-        #elif self.output_type == 'softmaxes':
-        #    output = softmaxes
-        #elif self.output_type == 'both':
-        #    output = [tokens, softmaxes]
-        #else:
-        #    raise ValueError('the output_type specified is not implemented!')
+        if self.output_type == 'tokens':
+            output = tokens
+        elif self.output_type == 'softmaxes':
+            output = softmaxes
+        elif self.output_type == 'both':
+            output = [tokens, softmaxes]
+        else:
+            raise ValueError('the output_type specified is not implemented!')
         
         return output
 
@@ -469,7 +449,7 @@ def test_vAriEL_Decoder_model():
     #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
     vocabSize = 3
     max_senLen = 5
-    batchSize = 1
+    batchSize = 2
     latDim = 4
     
     
