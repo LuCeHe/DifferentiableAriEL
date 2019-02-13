@@ -31,68 +31,42 @@ from nlp import GrammarLanguageModel, Vocabulary, addEndTokenToGrammar, \
 from AriEL import SentenceEncoder, SentenceDecoder, SentenceEmbedding
 from sentenceGenerators import _charactersNumsGenerator
 
+import tensorflow as tf
+
+import keras.backend as K
+from keras.models import Sequential, Model
+from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
+                         Bidirectional, LSTM, Lambda, TimeDistributed, \
+                         RepeatVector, Activation
+from keras.preprocessing.sequence import pad_sequences
+
+
+from numpy.random import seed
+seed(3)
+from tensorflow import set_random_seed
+set_random_seed(2)
+
+
 logger = logging.getLogger(__name__)
 
 
-class vAriEL_Encoder(SentenceEncoder):
 
-    INTERNAL_PRECISION = 100
-    EOS = '<EOS>'
 
-    def __init__(self, grammar, ndim=1, precision=np.finfo(np.float32).precision, dtype=np.float32, transform=None):
-        super(vAriEL_Encoder, self).__init__()
-        self.__dict__.update(grammar=grammar, ndim=ndim, precision=precision, dtype=dtype, transform=transform)
-        self.languageModel = GrammarLanguageModel(addEndTokenToGrammar(grammar, INTERNAL_PRECISION.EOS))
 
-    def encode(self, sentence):
 
-        with localcontext(Context(prec=vAriEL_Encoder.INTERNAL_PRECISION)):
-            # Initial range
-            lowerBounds = [Decimal(0)] * self.ndim
-            upperBounds = [Decimal(1)] * self.ndim
-            curDim = 0
+# grammar cannot have recursion!
+grammar = CFG.fromstring("""
+                         S -> NP VP | NP V
+                         VP -> V NP
+                         PP -> P NP
+                         NP -> Det N
+                         Det -> 'a' | 'the'
+                         N -> 'dog' | 'cat'
+                         V -> 'chased' | 'sat'
+                         P -> 'on' | 'in'
+                         """)
 
-            self.languageModel.reset()
-            for token in tokenize(sentence) + [vAriEL_Encoder.EOS]:
-                # Get the distribution for the next possible tokens
-                nextTokens = sorted(list(self.languageModel.nextPossibleTokens()))
-                if token not in nextTokens:
-                    raise Exception('Input sentence does not respect the grammar! : ' + sentence)
-                probs = 1.0 / len(nextTokens) * np.ones(len(nextTokens))
 
-                # CDF range
-                cdfLow = np.concatenate([[0.0], np.cumsum(probs)[:-1]])
-                cdfHigh = np.cumsum(probs)
-
-                # Update range from the CDF range of given token
-                idx = nextTokens.index(token)
-                curRange = upperBounds[curDim] - lowerBounds[curDim]
-                print(upperBounds)
-                print(lowerBounds)
-                print(token)
-                print(nextTokens)
-                print('')
-                upperBounds[curDim] = lowerBounds[curDim] + (curRange * Decimal(cdfHigh[idx]))
-                lowerBounds[curDim] = lowerBounds[curDim] + (curRange * Decimal(cdfLow[idx]))
-
-                self.languageModel.addToken(token)
-
-                # NOTE: at each iteration, change the dimension
-                curDim += 1
-                if curDim >= self.ndim:
-                    curDim = 0
-
-            # Compute the middle point of the final range
-            z = [lowerBound + ((upperBound - lowerBound) / Decimal(2))
-                 for lowerBound, upperBound in zip(lowerBounds, upperBounds)]
-            z = np.array(z, dtype=self.dtype)
-
-        if self.transform is not None:
-            z = np.dot(z, self.transform)
-
-        z = np.round(z, self.precision)
-
-        return z
 
 class vAriEL(SentenceEmbedding):
 
@@ -130,34 +104,6 @@ class vAriEL(SentenceEmbedding):
 
 
 
-
-
-# grammar cannot have recursion!
-grammar = CFG.fromstring("""
-                         S -> NP VP | NP V
-                         VP -> V NP
-                         PP -> P NP
-                         NP -> Det N
-                         Det -> 'a' | 'the'
-                         N -> 'dog' | 'cat'
-                         V -> 'chased' | 'sat'
-                         P -> 'on' | 'in'
-                         """)
-
-
-from numpy.random import seed
-seed(3)
-from tensorflow import set_random_seed
-set_random_seed(2)
-
-import keras.backend as K
-from keras.models import Sequential, Model
-from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
-                         Bidirectional, LSTM, Lambda, TimeDistributed, \
-                         RepeatVector, Activation
-from keras.preprocessing.sequence import pad_sequences
-
-import tensorflow as tf
 
 
 
@@ -273,39 +219,6 @@ class probsToPoint(object):
 
 
 
-def test_vAriEL_Encoder_model():
-    #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
-    vocabSize = 2
-    max_senLen = 3
-    batchSize = 3
-    latDim = 9
-    
-    questions = []
-    for _ in range(batchSize):
-        sentence_length = np.random.choice(max_senLen)
-        randomQ = np.random.choice(vocabSize, sentence_length) + 1
-        EOS = (vocabSize+1)*np.ones(1)
-        randomQ = np.concatenate((randomQ, EOS))
-        questions.append(randomQ)
-        
-    padded_questions = pad_sequences(questions)
-        
-    print(questions)
-    print('')
-    print(padded_questions)
-    print('')
-    print('')
-    
-    # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Encoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim)
-    #print(partialModel.predict(question)[0])
-    for layer in model.predict(padded_questions):
-        print(layer)
-        print('')
-        print('')
-        print('')
-
-
 
 def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10):    
     
@@ -349,7 +262,6 @@ class pointToProbs(object):
             final_softmaxes = one_softmax
             final_tokens = None
             curDim = 0
-            counter = 0
             # NOTE: since ending on the EOS token would fail for mini-batches, 
             # the algorithm stops at a maxLen when the length of the sentence 
             # is maxLen
@@ -444,37 +356,123 @@ class pointToProbs(object):
 
 
 
+        
+        
+        
+def test_vAriEL_AE_cdc_model():
+    pass
+    
 
-def test_vAriEL_Decoder_model():
+
+
+class Differential_AriEL_dcd(object):
+    def __init__(self, 
+                 vocabSize = 5, 
+                 embDim = 2, 
+                 latDim = 3, 
+                 rnn=None, 
+                 max_senLen = 10, 
+                 output_type = 'both'):
+
+        self.__dict__.update(vocabSize=vocabSize, 
+                             latDim=latDim, 
+                             embDim=embDim, 
+                             max_senLen=max_senLen, 
+                             output_type='both')
+        
+        self.embedding = Embedding(vocabSize, embDim)
+        
+        # if the input is a rnn, use that, otherwise use an LSTM
+        if 'return_state' in rnn.get_config():
+            self.rnn = rnn
+        else:
+            self.rnn = LSTM(vocabSize, return_sequences=True)
+        
+        
+    def encode(self, input_discrete_seq):
+        # FIXME: clarify what to do with the padding and EOS
+        # vocabSize + 1 for the keras padding + 1 for EOS
+        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize + 2, 
+                                             embDim = self.embDim, 
+                                             latDim = self.latDim)
+
+        # it doesn't return a keras Model, it returns a keras Layer
+        return DAriA_encoder(input_discrete_seq)
+            
+    def decode(self, input_continuous_point):
+        # FIXME: clarify what to do with the padding and EOS
+        # vocabSize + 1 for the keras padding + 1 for EOS
+        DAriA_Decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize + 2, 
+                                             embDim = self.embDim, 
+                                             latDim = self.latDim)
+
+        # it doesn't return a keras Model, it returns a keras Layer        
+        return DAriA_Decoder(input_continuous_point)
+    
+        
+        
+        
+        
+        
+        
+def test_vAriEL_AE_dcd_model():
     #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
-    vocabSize = 3
-    max_senLen = 5
-    batchSize = 2
-    latDim = 4
+    vocabSize = 2
+    max_senLen = 3
+    batchSize = 3
+    latDim = 9
     
-    
-    questions = np.random.rand(batchSize, latDim)
-     
+    questions = []
+    for _ in range(batchSize):
+        sentence_length = np.random.choice(max_senLen)
+        randomQ = np.random.choice(vocabSize, sentence_length) + 1
+        EOS = (vocabSize+1)*np.ones(1)
+        randomQ = np.concatenate((randomQ, EOS))
+        questions.append(randomQ)
+        
+    padded_questions = pad_sequences(questions)
+        
     print(questions)
     print('')
+    print(padded_questions)
     print('')
-    print('-----------------------------------------------------------------------')
     print('')
+    
+    
+    
+    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim)
+
+
+    input_question = Input((None,))
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim, max_senLen = max_senLen)
+    model = model(inputs=input_question, outputs=discrete_output)
     #print(partialModel.predict(question)[0])
-    for layer in model.predict(questions):
+    for layer in model.predict(padded_questions):
         print(layer)
         print('')
-    
-    
-    
+        print('')
+        print('')
 
+
+    
+    
+def simple_tests():
+    lstm = LSTM(12)
+    print('return_state' in lstm.get_config())
+    
+    
 if __name__ == '__main__':
 
     #test_vAriEL_Encoder_model()
-    test_vAriEL_Decoder_model()
+    #test_vAriEL_Decoder_model()
+    #test_vAriEL_AE_dcd_model()
+    simple_tests()
+    
     
     # FIXME: first token of the question, to make the first siftmax appear
     # hide it inside the code, so the user can simply plug a sentence to the model
