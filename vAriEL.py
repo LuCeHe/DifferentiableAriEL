@@ -137,22 +137,31 @@ def dynamic_one_hot(x, d, pos):
     return one_hots
 
 
-def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4):    
+def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):  
     
+    # if the input is a rnn, use that, otherwise use an LSTM
+    if rnn == None:
+        rnn = LSTM(vocabSize, return_sequences=True)
+    if embedding == None:
+        embedding = Embedding(vocabSize, embDim)
+        
+    assert 'return_state' in rnn.get_config()
+    assert 'embeddings_initializer' in embedding.get_config()
+        
     input_questions = Input(shape=(None,), name='question')
     
-    embed = Embedding(vocabSize, embDim)(input_questions)
+    embed = embedding(input_questions)
         
     # FIXME: I think arguments passed this way won't be saved with the model
     # follow instead: https://github.com/keras-team/keras/issues/1879
-    LSTM_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(embed)
+    RNN_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(embed)
 
     # a zero vector is concatenated as the first word embedding 
     # to start running the RNN that will follow
-    concatenation = concatenate([LSTM_starter, embed], axis = 1)
+    concatenation = concatenate([RNN_starter, embed], axis = 1)
       
-    lstm = LSTM(vocabSize, return_sequences=True)(concatenation)    
-    softmax = TimeDistributed(Activation('softmax'))(lstm)
+    rnn_output = rnn(concatenation)    
+    softmax = TimeDistributed(Activation('softmax'))(rnn_output)
     
     probs = probsToPoint(vocabSize, latDim)([softmax, input_questions])
     model = Model(inputs=input_questions, outputs=probs)
@@ -220,25 +229,33 @@ class probsToPoint(object):
 
 
 
-def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10):    
+def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10, rnn=None, embedding=None, output_type='both'):  
+    
+    # if the input is a rnn, use that, otherwise use an LSTM
+    if rnn == None:
+        rnn = LSTM(vocabSize, return_sequences=True)
+    if embedding == None:
+        embedding = Embedding(vocabSize, embDim)
+        
+    assert 'return_state' in rnn.get_config()
+    assert 'embeddings_initializer' in embedding.get_config()
     
     input_point = Input(shape=(latDim,), name='point')
         
     # FIXME: I think arguments passed this way won't be saved with the model
     # follow instead: https://github.com/keras-team/keras/issues/1879
-    LSTM_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(input_point)
-      
-    lstm = LSTM(vocabSize, return_sequences=True)
-    lstm_output = lstm(LSTM_starter)    
+    RNN_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(input_point)
+    
+    lstm_output = rnn(RNN_starter)    
     first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)
     
-    probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=lstm)([first_softmax, input_point])
+    probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=rnn, embedding=embedding, output_type=output_type)([first_softmax, input_point])
     model = Model(inputs=input_point, outputs=probs)
     return model
 
 
 class pointToProbs(object):
-    def __init__(self, vocabSize=2, latDim=3, embDim = 2, max_senLen = 10, rnn=None, output_type = 'both'):
+    def __init__(self, vocabSize=2, latDim=3, embDim=2, max_senLen=10, rnn=None, embedding=None, output_type = 'both'):
         """        
         inputs:
             output_type: 'tokens', 'softmaxes' or 'both'
@@ -248,7 +265,7 @@ class pointToProbs(object):
         #super(vAriEL_Encoder, self).__init__()
         self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
                              embDim=embDim, max_senLen=max_senLen, 
-                             rnn=rnn, output_type='both')
+                             rnn=rnn, embedding=embedding, output_type='both')
     
     def __call__(self, inputs):
         first_softmax, input_point = inputs
@@ -317,7 +334,7 @@ class pointToProbs(object):
                 unfolding_point = tf.divide(unfolding_point, p_iti)
                 
                 # get the softmax for the next iteration
-                embed = Embedding(self.vocabSize, self.embDim)(token)
+                embed = self.embedding(token)
                 rnn_output = self.rnn(embed)
                 one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
                 
@@ -371,30 +388,46 @@ class Differential_AriEL_dcd(object):
                  embDim = 2, 
                  latDim = 3, 
                  rnn=None, 
+                 embedding=None,
                  max_senLen = 10, 
                  output_type = 'both'):
 
         self.__dict__.update(vocabSize=vocabSize, 
                              latDim=latDim, 
                              embDim=embDim, 
+                             rnn=rnn,
+                             embedding=embedding,
                              max_senLen=max_senLen, 
                              output_type='both')
         
-        self.embedding = Embedding(vocabSize, embDim)
+        # both the encoder and the decoder will share the RNN and the embedding
+        # layer
         
         # if the input is a rnn, use that, otherwise use an LSTM
-        if 'return_state' in rnn.get_config():
-            self.rnn = rnn
-        else:
+        try:
+            if 'return_state' in rnn.get_config():
+                self.rnn = rnn
+        except AttributeError:
             self.rnn = LSTM(vocabSize, return_sequences=True)
         
+        if embedding == None:
+            embedding = Embedding(vocabSize, embDim)
+            
+        try:
+            assert 'return_state' in self.rnn.get_config()
+        except AttributeError:
+            raise
+        #assert 'return_state' in rnn.get_config()
+        assert 'embeddings_initializer' in embedding.get_config()
         
     def encode(self, input_discrete_seq):
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize + 2, 
+        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize, 
                                              embDim = self.embDim, 
-                                             latDim = self.latDim)
+                                             latDim = self.latDim,
+                                             rnn = self.rnn,
+                                             embedding = self.embedding)
 
         # it doesn't return a keras Model, it returns a keras Layer
         return DAriA_encoder(input_discrete_seq)
@@ -402,12 +435,15 @@ class Differential_AriEL_dcd(object):
     def decode(self, input_continuous_point):
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_Decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize + 2, 
+        DAriA_decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize, 
                                              embDim = self.embDim, 
-                                             latDim = self.latDim)
+                                             latDim = self.latDim,
+                                             rnn = self.rnn,
+                                             embedding = self.embedding,
+                                             output_type = self.output_type)
 
         # it doesn't return a keras Model, it returns a keras Layer        
-        return DAriA_Decoder(input_continuous_point)
+        return DAriA_decoder(input_continuous_point)
     
         
         
@@ -420,14 +456,15 @@ def test_vAriEL_AE_dcd_model():
     vocabSize = 2
     max_senLen = 3
     batchSize = 3
+    embDim = 2
     latDim = 9
     
     questions = []
     for _ in range(batchSize):
         sentence_length = np.random.choice(max_senLen)
         randomQ = np.random.choice(vocabSize, sentence_length) + 1
-        EOS = (vocabSize+1)*np.ones(1)
-        randomQ = np.concatenate((randomQ, EOS))
+        #EOS = (vocabSize+1)*np.ones(1)
+        #randomQ = np.concatenate((randomQ, EOS))
         questions.append(randomQ)
         
     padded_questions = pad_sequences(questions)
@@ -440,7 +477,9 @@ def test_vAriEL_AE_dcd_model():
     
     
     
-    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim)
+    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize, 
+                                       embDim = embDim, 
+                                       latDim = latDim)
 
 
     input_question = Input((None,))
@@ -450,7 +489,7 @@ def test_vAriEL_AE_dcd_model():
 
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = model(inputs=input_question, outputs=discrete_output)
+    model = Model(inputs=input_question, outputs=discrete_output)
     #print(partialModel.predict(question)[0])
     for layer in model.predict(padded_questions):
         print(layer)
@@ -470,8 +509,8 @@ if __name__ == '__main__':
 
     #test_vAriEL_Encoder_model()
     #test_vAriEL_Decoder_model()
-    #test_vAriEL_AE_dcd_model()
-    simple_tests()
+    test_vAriEL_AE_dcd_model()
+    #simple_tests()
     
     
     # FIXME: first token of the question, to make the first siftmax appear
