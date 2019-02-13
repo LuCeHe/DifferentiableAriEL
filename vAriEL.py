@@ -254,6 +254,8 @@ def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 1
     return model
 
 
+
+
 class pointToProbs(object):
     def __init__(self, vocabSize=2, latDim=3, embDim=2, max_senLen=10, rnn=None, embedding=None, output_type = 'both'):
         """        
@@ -265,7 +267,7 @@ class pointToProbs(object):
         #super(vAriEL_Encoder, self).__init__()
         self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
                              embDim=embDim, max_senLen=max_senLen, 
-                             rnn=rnn, embedding=embedding, output_type='both')
+                             rnn=rnn, embedding=embedding, output_type=output_type)
     
     def __call__(self, inputs):
         first_softmax, input_point = inputs
@@ -420,6 +422,9 @@ class Differential_AriEL_dcd(object):
         #assert 'return_state' in rnn.get_config()
         assert 'embeddings_initializer' in embedding.get_config()
         
+        
+        tf.reset_default_graph()
+        
     def encode(self, input_discrete_seq):
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS
@@ -452,19 +457,17 @@ class Differential_AriEL_dcd(object):
         
         
 def test_vAriEL_AE_dcd_model():
-    #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
     vocabSize = 2
-    max_senLen = 3
+    max_senLen = 10
     batchSize = 3
     embDim = 2
-    latDim = 9
+    latDim = 5
     
     questions = []
     for _ in range(batchSize):
         sentence_length = np.random.choice(max_senLen)
-        randomQ = np.random.choice(vocabSize, sentence_length) + 1
-        #EOS = (vocabSize+1)*np.ones(1)
-        #randomQ = np.concatenate((randomQ, EOS))
+        randomQ = np.random.choice(vocabSize, sentence_length)
+        #EOS = (vocabSize+1)*np.ones(1)        #randomQ = np.concatenate((randomQ, EOS))
         questions.append(randomQ)
         
     padded_questions = pad_sequences(questions)
@@ -472,30 +475,36 @@ def test_vAriEL_AE_dcd_model():
     print(questions)
     print('')
     print(padded_questions)
-    print('')
-    print('')
+    print('\n')     
     
     
     
-    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize, 
-                                       embDim = embDim, 
+    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize,
+                                       embDim = embDim,
                                        latDim = latDim)
 
 
-    input_question = Input((None,))
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    print(K.int_shape(input_question))
+    print(input_question.dtype)
     continuous_latent_space = DAriA_dcd.encode(input_question)
+    print(K.int_shape(continuous_latent_space))
+    print(continuous_latent_space.dtype)
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
-
+    print(K.int_shape(discrete_output[0]), K.int_shape(discrete_output[1]))
+    print(discrete_output[0].dtype, discrete_output[1].dtype)
+    print('')
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = Model(inputs=input_question, outputs=discrete_output)
+    model = Model(inputs=input_question, outputs=discrete_output + [continuous_latent_space])
+    model.summary()
+    print('')
+    
     #print(partialModel.predict(question)[0])
     for layer in model.predict(padded_questions):
         print(layer)
-        print('')
-        print('')
-        print('')
+        print('\n')
 
 
     
@@ -504,13 +513,43 @@ def simple_tests():
     lstm = LSTM(12)
     print('return_state' in lstm.get_config())
     
+    dense = Dense(10)
+    
+    inputs1 = Input((3,))
+    dense1 = dense(inputs1)
+    outputs1 = Dense(5)(dense1)
+    model1 = Model(inputs=inputs1, outputs=outputs1)
+    model1.summary()
+    print('-------------------------------------------------------------------------------------------------')
+    
+    
+    inputs2 = Input((5,))
+    dense_i = Dense(3)(inputs2)
+    dense2 = dense(dense_i)
+    outputs2 = Dense(2)(dense2)
+    model2 = Model(inputs=inputs2, outputs=outputs2)
+    model2.summary()
+    print('-------------------------------------------------------------------------------------------------')
+    
+    
+    inputs3 = Input((3,))
+    outputs3 = model2(model1(inputs3))
+    model3 = Model(inputs=inputs3, outputs=outputs3)
+    model3.summary()
+    print('-------------------------------------------------------------------------------------------------')
+    
+    
+    output = model3.predict(np.random.rand(2,3))
+    print(output)
+    
+    
     
 if __name__ == '__main__':
 
     #test_vAriEL_Encoder_model()
     #test_vAriEL_Decoder_model()
-    test_vAriEL_AE_dcd_model()
-    #simple_tests()
+    #test_vAriEL_AE_dcd_model()
+    simple_tests()
     
     
     # FIXME: first token of the question, to make the first siftmax appear

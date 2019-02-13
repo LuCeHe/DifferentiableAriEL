@@ -6,7 +6,10 @@ Created on Tue Feb 12 23:10:07 2019
 @author: perfect
 """
 
+import numpy as np
 from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model
+from keras.preprocessing.sequence import pad_sequences
+
 
 
 def test_vAriEL_Encoder_model():
@@ -25,7 +28,10 @@ def test_vAriEL_Encoder_model():
         questions.append(randomQ)
         
     padded_questions = pad_sequences(questions)
-        
+    print("""
+          Test Encoding
+          
+          """)        
     print(questions)
     print('')
     print(padded_questions)
@@ -36,12 +42,9 @@ def test_vAriEL_Encoder_model():
     model = vAriEL_Encoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim)
     #print(partialModel.predict(question)[0])
     for layer in model.predict(padded_questions):
-        print(layer)
+        print(layer.shape)
         print('')
         print('')
-        print('')
-
-
 
 
 def test_vAriEL_Decoder_model():
@@ -53,7 +56,11 @@ def test_vAriEL_Decoder_model():
     
     
     questions = np.random.rand(batchSize, latDim)
-     
+    
+    print("""
+          Test Decoding
+          
+          """)
     print(questions)
     print('')
     print('')
@@ -61,10 +68,10 @@ def test_vAriEL_Decoder_model():
     print('')
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim, max_senLen = max_senLen)
+    model = vAriEL_Decoder_model(vocabSize = vocabSize + 2, embDim = 2, latDim = latDim, max_senLen = max_senLen, output_type='tokens')
     #print(partialModel.predict(question)[0])
     for layer in model.predict(questions):
-        print(layer)
+        print(layer.shape)
         print('')
         
 
@@ -72,4 +79,5 @@ def test_vAriEL_Decoder_model():
 
 if __name__ == '__main__':
     test_vAriEL_Decoder_model()
+    print('=========================================================================================')
     test_vAriEL_Encoder_model()
