@@ -380,6 +380,9 @@ class pointToProbs(object):
             # remove last softmax, since the initial was given by the an initial
             # zero vector
             final_softmaxes = final_softmaxes[:,:-1,:]
+            # tokens to integers
+            #final_tokens = tf.cast(final_tokens, tf.int32)
+            
             
             return  [final_tokens, final_softmaxes]
 
