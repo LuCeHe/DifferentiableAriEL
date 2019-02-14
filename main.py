@@ -89,9 +89,6 @@ def main():
                   
                   """)
             indicess = ae_model.predict(sentences)
-            print(indicess)
-            indicess =  [[int(i) for i in list_idx] for list_idx in indicess]
-            print(indicess)
             sentences = generator_class.indicesToSentences(indicess)
             print(sentences)
             print("""
@@ -100,9 +97,6 @@ def main():
                   """)
             noise = np.random.rand(batchSize, latDim)
             indicess = decoder_model.predict(noise)
-            print(indicess)
-            indicess =  [[int(i) for i in list_idx] for list_idx in indicess]
-            print(indicess)
             sentences = generator_class.indicesToSentences(indicess)
             print(sentences)
             

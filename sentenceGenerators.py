@@ -113,6 +113,8 @@ class c2n_generator(object):
             yield padded_indices
             
     def indicesToSentences(self, indices):
+        if not isinstance(indices[0][0], int):
+            indices =  [[int(i) for i in list_idx] for list_idx in indices]
         return self.vocabulary.indicesToSentences(indices)
         
 
