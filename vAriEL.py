@@ -53,24 +53,6 @@ logger = logging.getLogger(__name__)
 
 
 
-
-# grammar cannot have recursion!
-grammar = CFG.fromstring("""
-                         S -> NP VP | NP V
-                         VP -> V NP
-                         PP -> P NP
-                         NP -> Det N
-                         Det -> 'a' | 'the'
-                         N -> 'dog' | 'cat'
-                         V -> 'chased' | 'sat'
-                         P -> 'on' | 'in'
-                         """)
-
-
-
-
-
-
 def partial_vAriEL_Encoder_model(vocabSize = 101, embDim = 2):    
     
     input_questions = Input(shape=(None,), name='question')
@@ -467,32 +449,30 @@ class Differential_AriEL(object):
         #assert 'return_state' in rnn.get_config()
         assert 'embeddings_initializer' in embedding.get_config()
         
+        # FIXME: clarify what to do with the padding and EOS
+        # vocabSize + 1 for the keras padding + 1 for EOS        
+        self.DAriA_encoder = vAriEL_Encoder_Layer(vocabSize = self.vocabSize, 
+                                                  embDim = self.embDim, 
+                                                  latDim = self.latDim,
+                                                  rnn = self.rnn,
+                                                  embedding = self.embedding)
+        
+        self.DAriA_decoder = vAriEL_Decoder_Layer(vocabSize = self.vocabSize, 
+                                                  embDim = self.embDim, 
+                                                  latDim = self.latDim,
+                                                  max_senLen = self.max_senLen,
+                                                  rnn = self.rnn,
+                                                  embedding = self.embedding,
+                                                  output_type = self.output_type)
+        
         
     def encode(self, input_discrete_seq):
-        # FIXME: clarify what to do with the padding and EOS
-        # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_encoder = vAriEL_Encoder_Layer(vocabSize = self.vocabSize, 
-                                             embDim = self.embDim, 
-                                             latDim = self.latDim,
-                                             rnn = self.rnn,
-                                             embedding = self.embedding)
-
         # it doesn't return a keras Model, it returns a keras Layer
-        return DAriA_encoder(input_discrete_seq)
+        return self.DAriA_encoder(input_discrete_seq)
             
     def decode(self, input_continuous_point):
-        # FIXME: clarify what to do with the padding and EOS
-        # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_decoder = vAriEL_Decoder_Layer(vocabSize = self.vocabSize, 
-                                             embDim = self.embDim, 
-                                             latDim = self.latDim,
-                                             max_senLen = self.max_senLen,
-                                             rnn = self.rnn,
-                                             embedding = self.embedding,
-                                             output_type = self.output_type)
-        
         # it doesn't return a keras Model, it returns a keras Layer        
-        return DAriA_decoder(input_continuous_point)
+        return self.DAriA_decoder(input_continuous_point)
     
         
         
