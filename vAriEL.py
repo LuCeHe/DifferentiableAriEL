@@ -240,16 +240,29 @@ def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 1
     assert 'return_state' in rnn.get_config()
     assert 'embeddings_initializer' in embedding.get_config()
     
-    input_point = Input(shape=(latDim,), name='point')
+    input_point = Input(shape=(latDim,), name='input_point')
         
     # FIXME: I think arguments passed this way won't be saved with the model
     # follow instead: https://github.com/keras-team/keras/issues/1879
     RNN_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(input_point)
     
     lstm_output = rnn(RNN_starter)    
-    first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)
+    
+    grad = tf.gradients(xs=RNN_starter, ys=lstm_output)
+    print('grad:   ', grad)
+    
+    first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
+    
+    grad = tf.gradients(xs=RNN_starter, ys=first_softmax)
+    print('grad:   ', grad)
     
     probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=rnn, embedding=embedding, output_type=output_type)([first_softmax, input_point])
+
+    grad = tf.gradients(xs=input_point, ys=probs)
+    print('grad:   ', grad)
+    grad = tf.gradients(xs=RNN_starter, ys=probs)
+    print('grad:   ', grad)
+    
     model = Model(inputs=input_point, outputs=probs)
     return model
 
@@ -404,6 +417,7 @@ class Differential_AriEL_dcd(object):
         
         # both the encoder and the decoder will share the RNN and the embedding
         # layer
+        tf.reset_default_graph()
         
         # if the input is a rnn, use that, otherwise use an LSTM
         try:
@@ -423,7 +437,8 @@ class Differential_AriEL_dcd(object):
         assert 'embeddings_initializer' in embedding.get_config()
         
         
-        tf.reset_default_graph()
+        print(self.rnn)
+        
         
     def encode(self, input_discrete_seq):
         # FIXME: clarify what to do with the padding and EOS
@@ -450,8 +465,31 @@ class Differential_AriEL_dcd(object):
         # it doesn't return a keras Model, it returns a keras Layer        
         return DAriA_decoder(input_continuous_point)
     
+    def ae(self):
+        input_question = Input(shape=(None,), name='discrete_sequence')
         
+        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize, 
+                                             embDim = self.embDim, 
+                                             latDim = self.latDim,
+                                             rnn = self.rnn,
+                                             embedding = self.embedding)
+
+        # FIXME: clarify what to do with the padding and EOS
+        # vocabSize + 1 for the keras padding + 1 for EOS
+        DAriA_decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize, 
+                                             embDim = self.embDim, 
+                                             latDim = self.latDim,
+                                             rnn = self.rnn,
+                                             embedding = self.embedding,
+                                             output_type = self.output_type)
         
+    
+        
+        outputs = DAriA_decoder(DAriA_encoder(input_question))
+        
+        ae = Model(inputs = input_question, outputs = outputs)
+        
+        return ae
         
         
         
@@ -484,20 +522,22 @@ def test_vAriEL_AE_dcd_model():
                                        latDim = latDim)
 
 
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    print(K.int_shape(input_question))
-    print(input_question.dtype)
-    continuous_latent_space = DAriA_dcd.encode(input_question)
-    print(K.int_shape(continuous_latent_space))
-    print(continuous_latent_space.dtype)
+    #input_question = Input(shape=(None,), name='discrete_sequence')
+    #print(K.int_shape(input_question))
+    #print(input_question.dtype)
+    #continuous_latent_space = DAriA_dcd.encode(input_question)
+    #print(K.int_shape(continuous_latent_space))
+    #print(continuous_latent_space.dtype)
     # in between some neural operations can be defined
-    discrete_output = DAriA_dcd.decode(continuous_latent_space)
-    print(K.int_shape(discrete_output[0]), K.int_shape(discrete_output[1]))
-    print(discrete_output[0].dtype, discrete_output[1].dtype)
-    print('')
+    #discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    #print(K.int_shape(discrete_output[0]), K.int_shape(discrete_output[1]))
+    #print(discrete_output[0].dtype, discrete_output[1].dtype)
+    #print('')
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = Model(inputs=input_question, outputs=discrete_output + [continuous_latent_space])
+    #model = Model(inputs=input_question, outputs=discrete_output + [continuous_latent_space])
+    
+    model = DAriA_dcd.ae()
     model.summary()
     print('')
     
@@ -548,8 +588,8 @@ if __name__ == '__main__':
 
     #test_vAriEL_Encoder_model()
     #test_vAriEL_Decoder_model()
-    #test_vAriEL_AE_dcd_model()
-    simple_tests()
+    test_vAriEL_AE_dcd_model()
+    #simple_tests()
     
     
     # FIXME: first token of the question, to make the first siftmax appear
