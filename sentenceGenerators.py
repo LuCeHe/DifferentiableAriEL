@@ -105,12 +105,15 @@ class c2n_generator(object):
         
     def generator(self):
         while True:
-            sentences = [[' '.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
+            sentences = [[''.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
             #print(sentences)
             sentencesCharacters = sentencesToCharacters(sentences)
             sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
             padded_indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
             yield padded_indices
+            
+    def indicesToSentences(self, indices):
+        return self.vocabulary.indicesToSentences(indices)
         
 
     
@@ -151,12 +154,17 @@ def test_sentencesToCharacters():
 
 def test_generator_class():
     
-    generator_class = c2n_generator(grammar, maxlen=10)
+    generator_class = c2n_generator(grammar, maxlen=20)
     generator = generator_class.generator()
-    for sentence in next(generator): print(sentence)
+    
+    indicess = next(generator)
+    sentences = generator_class.indicesToSentences(indicess)
+    
     print('')
-    for sentence in next(generator): print(sentence)
-    print('')
+    for indices, sentence in zip(indicess, sentences): 
+        print(indices)
+        print(sentence)
+        print('')
     print('')
     print('')
     

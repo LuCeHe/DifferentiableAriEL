@@ -88,13 +88,17 @@ def main():
                   test ae
                   
                   """)
-            print(ae_model.predict(sentences))
+            indicess = ae_model.predict(sentences)
+            sentences = sentences = generator_class.indicesToSentences(indicess)
+            print(sentences)
             print("""
                   test decoder
                   
                   """)
             noise = np.random.rand(batchSize, latDim)
-            print(decoder_model.predict(noise))
+            indicess = decoder_model.predict(noise)
+            sentences = sentences = generator_class.indicesToSentences(indicess)
+            print(sentences)
             
 
 
