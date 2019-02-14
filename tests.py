@@ -7,8 +7,12 @@ Created on Tue Feb 12 23:10:07 2019
 """
 
 import numpy as np
-from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model
+from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
 from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential, Model
+from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
+                         Bidirectional, LSTM, Lambda, TimeDistributed, \
+                         RepeatVector, Activation
 import tensorflow as tf
 
 
@@ -141,9 +145,130 @@ def test_vAriEL_Decoder_model():
     
     
     
+        
+        
+def test_vAriEL_AE_dcd_model():
+    
+    questions, _ = random_sequences_and_points()
     
     
+    print("""
+          Test Auto-Encoder
+          
+          """)        
+
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
+    #model.summary()
+    
+    for layer in model.predict(questions):
+        print(layer)
+        print('\n')
+        
+    print('')
+    print(questions)
+    print('')
+    print('')
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(questions, questions)    
+
+    
+    
+    
+
+        
+        
+def test_vAriEL_AE_cdc_model():
+    
+    _, points = random_sequences_and_points()
+    
+    
+    print("""
+          Test Auto-Encoder
+          
+          """)        
+
+    DAriA_cdc = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_point = Input(shape=(latDim,), name='discrete_sequence')
+    discrete_output = DAriA_cdc.decode(input_point)
+    # in between some neural operations can be defined
+    continuous_output = DAriA_cdc.encode(discrete_output)
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_point, outputs=continuous_output)   # + [continuous_latent_space])    
+    #model.summary()
+    
+    for layer in model.predict(points):
+        print(layer)
+        print('\n')
+        
+    print('')
+    print(points)
+    print('')
+    print('')
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(points, points)    
+
+
+
+
+
 if __name__ == '__main__':
-    test_vAriEL_Decoder_model()
+    #test_vAriEL_Decoder_model()
     print('=========================================================================================')
-    test_vAriEL_Encoder_model()
+    #test_vAriEL_Encoder_model()
+    print('=========================================================================================')    
+    #test_vAriEL_AE_dcd_model()
+    print('=========================================================================================')    
+    test_vAriEL_AE_cdc_model()

@@ -68,43 +68,6 @@ grammar = CFG.fromstring("""
 
 
 
-class vAriEL(SentenceEmbedding):
-
-    def __init__(self, grammar, 
-                 ndim=1, 
-                 precision=np.finfo(np.float32).precision, 
-                 dtype=np.float32, 
-                 nbMaxTokens=100, 
-                 transform=None, 
-                 flexibleBounds=False,
-                 name='embedding_arithmetic'):
-        self.name = name
-            
-        vocabulary = Vocabulary.fromGrammar(self.grammarInputAgent)
-        super(vAriEL, self).__init__(vocabulary, ndim)
-
-        if precision > np.finfo(dtype).precision:
-            logger.warning('Reducing precision because it is higher than what %s can support (%d > %d): ' % (str(dtype), precision, np.finfo(dtype).precision))
-            precision = np.finfo(dtype).precision
-        self.__dict__.update(grammar=grammar, precision=precision, dtype=dtype, nbMaxTokens=nbMaxTokens)
-
-        # FIXME: I simplified the code to keep it mentally manageable
-        self.transform = None
-        self.transformInv = None
-            
-        # define encoder and decoder
-        self.encoder = vAriEL_Encoder(self.grammar, ndim=ndim, precision=precision, dtype=dtype, transform=self.transform)
-        self.decoder = 1 #vAriEL_Decoder(self.grammar, ndim=ndim, precision=precision, transform=self.transformInv)
-
-    def getEncoder(self):
-        return self.encoder
-
-    def getDecoder(self, languageModel = None):
-        return self.decoder
-
-
-
-
 
 
 
@@ -122,7 +85,9 @@ def partial_vAriEL_Encoder_model(vocabSize = 101, embDim = 2):
     return model
                  
 
-
+# FIXME: don't pass arguments as 
+# Lambda(dynamic_zeros, arguments={'d': dimension})(input)
+# since it might not be saved with the model
 def dynamic_zeros(x, d):
     batch_size = tf.shape(x)[0]
     return tf.zeros(tf.stack([batch_size, 1, d]))
@@ -137,42 +102,61 @@ def dynamic_one_hot(x, d, pos):
     return one_hots
 
 
-def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):  
-    
-    # if the input is a rnn, use that, otherwise use an LSTM
-    if rnn == None:
-        rnn = LSTM(vocabSize, return_sequences=True)
-    if embedding == None:
-        embedding = Embedding(vocabSize, embDim)
-        
-    assert 'return_state' in rnn.get_config()
-    assert 'embeddings_initializer' in embedding.get_config()
-        
-    input_questions = Input(shape=(None,), name='question')
-    
-    embed = embedding(input_questions)
-        
-    # FIXME: I think arguments passed this way won't be saved with the model
-    # follow instead: https://github.com/keras-team/keras/issues/1879
-    RNN_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(embed)
 
-    # a zero vector is concatenated as the first word embedding 
-    # to start running the RNN that will follow
-    concatenation = concatenate([RNN_starter, embed], axis = 1)
-      
-    rnn_output = rnn(concatenation)    
-    softmax = TimeDistributed(Activation('softmax'))(rnn_output)
-
-    # this gradients don't work, FIXME!
-    #grad = tf.gradients(xs=input_questions, ys=rnn_output)
-    #print('grad (xs=input_questions, ys=rnn_output):   ', grad)            
-    #grad = tf.gradients(xs=input_questions, ys=embed)
-    #print('grad (xs=input_questions, ys=embed):        ', grad)            
-    #grad = tf.gradients(xs=input_questions, ys=softmax)
-    #print('grad (xs=input_questions, ys=softmax):      ', grad)            
+class vAriEL_Encoder_Layer(object):
+    def __init__(self, vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):  
+        self.__dict__.update(vocabSize=vocabSize, embDim=embDim, latDim=latDim, rnn=rnn, embedding=embedding)
+        
+        
+        # if the input is a rnn, use that, otherwise use an LSTM
+        if self.rnn == None:
+            self.rnn = LSTM(vocabSize, return_sequences=True)
+        if self.embedding == None:
+            self.embedding = Embedding(vocabSize, embDim)
+            
+        assert 'return_state' in self.rnn.get_config()
+        assert 'embeddings_initializer' in self.embedding.get_config()
+        
+    def __call__(self, input_questions):
+        #input_questions = Input(shape=(None,), name='question')
+        
+        embed = self.embedding(input_questions)
+            
+        # FIXME: I think arguments passed this way won't be saved with the model
+        # follow instead: https://github.com/keras-team/keras/issues/1879
+        RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(embed)
     
-    probs = probsToPoint(vocabSize, latDim)([softmax, input_questions])
-    model = Model(inputs=input_questions, outputs=probs)
+        # a zero vector is concatenated as the first word embedding 
+        # to start running the RNN that will follow
+        concatenation = concatenate([RNN_starter, embed], axis = 1)
+          
+        rnn_output = self.rnn(concatenation)    
+        softmax = TimeDistributed(Activation('softmax'))(rnn_output)
+        
+        # this gradients don't work, FIXME!
+        # the Embedding brings probs
+        #grad = tf.gradients(xs=input_questions, ys=rnn_output)
+        #print('grad (xs=input_questions, ys=rnn_output):   ', grad)            
+        #grad = tf.gradients(xs=input_questions, ys=embed)
+        #print('grad (xs=input_questions, ys=embed):        ', grad)            
+        #grad = tf.gradients(xs=input_questions, ys=softmax)
+        #print('grad (xs=input_questions, ys=softmax):      ', grad)            
+        #grad = tf.gradients(xs=concatenation, ys=softmax)
+        #print('grad (xs=concatenation, ys=softmax):      ', grad)           # YES!!  
+        
+    
+        point = probsToPoint(self.vocabSize, self.latDim)([softmax, input_questions])
+        return point
+
+
+
+
+def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):      
+    
+    layer = vAriEL_Encoder_Layer(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None)        
+    input_questions = Input(shape=(None,), name='question')    
+    point = layer(input_questions)
+    model = Model(inputs=input_questions, outputs=point)
     return model
 
 
@@ -235,43 +219,64 @@ class probsToPoint(object):
 
 
 
+class vAriEL_Decoder_Layer(object):
+    def __init__(self, 
+                 vocabSize = 101, 
+                 embDim = 2, 
+                 latDim = 4, 
+                 max_senLen = 10, 
+                 rnn=None, 
+                 embedding=None, 
+                 output_type='both'):  
+        
+        
+        self.__dict__.update(vocabSize=vocabSize, 
+                             embDim=embDim, 
+                             latDim=latDim, 
+                             max_senLen=max_senLen,
+                             rnn=rnn, 
+                             embedding=embedding, 
+                             output_type=output_type)
+        
+        # if the input is a rnn, use that, otherwise use an LSTM
+        if self.rnn == None:
+            self.rnn = LSTM(vocabSize, return_sequences=True)
+        if self.embedding == None:
+            self.embedding = Embedding(vocabSize, embDim)
+            
+        assert 'return_state' in self.rnn.get_config()
+        assert 'embeddings_initializer' in self.embedding.get_config()
+        
+    
+    def __call__(self, input_point):
+        #input_point = Input(shape=(latDim,), name='input_point')
+            
+        # FIXME: I think arguments passed this way won't be saved with the model
+        # follow instead: https://github.com/keras-team/keras/issues/1879
+        RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(input_point)        
+        lstm_output = self.rnn(RNN_starter)    
+        first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
+        
+        output = pointToProbs(vocabSize=self.vocabSize, 
+                              latDim=self.latDim, 
+                              embDim=self.embDim, 
+                              max_senLen=self.max_senLen, 
+                              rnn=self.rnn, 
+                              embedding=self.embedding, 
+                              output_type=self.output_type)([first_softmax, input_point])
+    
+        #model = Model(inputs=input_point, outputs=probs)
+        return output
+
+
 
 
 def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10, rnn=None, embedding=None, output_type='both'):  
     
-    # if the input is a rnn, use that, otherwise use an LSTM
-    if rnn == None:
-        rnn = LSTM(vocabSize, return_sequences=True)
-    if embedding == None:
-        embedding = Embedding(vocabSize, embDim)
-        
-    assert 'return_state' in rnn.get_config()
-    assert 'embeddings_initializer' in embedding.get_config()
-    
+    layer = vAriEL_Decoder_Layer(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10, rnn=None, embedding=None, output_type='both')
     input_point = Input(shape=(latDim,), name='input_point')
-        
-    # FIXME: I think arguments passed this way won't be saved with the model
-    # follow instead: https://github.com/keras-team/keras/issues/1879
-    RNN_starter = Lambda(dynamic_zeros, arguments={'d': embDim})(input_point)
-    
-    lstm_output = rnn(RNN_starter)    
-    
-    #grad = tf.gradients(xs=RNN_starter, ys=lstm_output)
-    #print('grad:   ', grad)
-    
-    first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
-    
-    #grad = tf.gradients(xs=RNN_starter, ys=first_softmax)
-    #print('grad:   ', grad)
-    
-    probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=rnn, embedding=embedding, output_type=output_type)([first_softmax, input_point])
-
-    #grad = tf.gradients(xs=input_point, ys=probs)
-    #print('grad (xs=input_point, ys=probs):   ', grad)            # YES!!!
-    #grad = tf.gradients(xs=RNN_starter, ys=probs)
-    #print('grad (xs=RNN_starter, ys=probs):   ', grad)            # YES!!!
-    
-    model = Model(inputs=input_point, outputs=probs)
+    output = layer(input_point)    
+    model = Model(inputs=input_point, outputs=output)
     return model
 
 
@@ -423,7 +428,7 @@ def test_vAriEL_AE_cdc_model():
 
 
 
-class Differential_AriEL_dcd(object):
+class Differential_AriEL(object):
     def __init__(self, 
                  vocabSize = 5, 
                  embDim = 2, 
@@ -439,7 +444,7 @@ class Differential_AriEL_dcd(object):
                              rnn=rnn,
                              embedding=embedding,
                              max_senLen=max_senLen, 
-                             output_type='both')
+                             output_type=output_type)
         
         # both the encoder and the decoder will share the RNN and the embedding
         # layer
@@ -466,7 +471,7 @@ class Differential_AriEL_dcd(object):
     def encode(self, input_discrete_seq):
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize, 
+        DAriA_encoder = vAriEL_Encoder_Layer(vocabSize = self.vocabSize, 
                                              embDim = self.embDim, 
                                              latDim = self.latDim,
                                              rnn = self.rnn,
@@ -478,140 +483,37 @@ class Differential_AriEL_dcd(object):
     def decode(self, input_continuous_point):
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize, 
+        DAriA_decoder = vAriEL_Decoder_Layer(vocabSize = self.vocabSize, 
                                              embDim = self.embDim, 
                                              latDim = self.latDim,
+                                             max_senLen = self.max_senLen,
                                              rnn = self.rnn,
                                              embedding = self.embedding,
                                              output_type = self.output_type)
-
+        
         # it doesn't return a keras Model, it returns a keras Layer        
         return DAriA_decoder(input_continuous_point)
     
-    def ae(self):
-        input_question = Input(shape=(None,), name='discrete_sequence')
         
-        DAriA_encoder = vAriEL_Encoder_model(vocabSize = self.vocabSize, 
-                                             embDim = self.embDim, 
-                                             latDim = self.latDim,
-                                             rnn = self.rnn,
-                                             embedding = self.embedding)
+        
 
-        # FIXME: clarify what to do with the padding and EOS
-        # vocabSize + 1 for the keras padding + 1 for EOS
-        DAriA_decoder = vAriEL_Decoder_model(vocabSize = self.vocabSize, 
-                                             embDim = self.embDim, 
-                                             latDim = self.latDim,
-                                             rnn = self.rnn,
-                                             embedding = self.embedding,
-                                             output_type = self.output_type)
-        
-    
-        
-        outputs = DAriA_decoder(DAriA_encoder(input_question))
-        
-        ae = Model(inputs = input_question, outputs = outputs)
-        
-        return ae
-        
-        
-        
-        
-def test_vAriEL_AE_dcd_model():
-    vocabSize = 2
-    max_senLen = 10
-    batchSize = 3
-    embDim = 2
-    latDim = 5
-    
-    questions = []
-    for _ in range(batchSize):
-        sentence_length = np.random.choice(max_senLen)
-        randomQ = np.random.choice(vocabSize, sentence_length)
-        #EOS = (vocabSize+1)*np.ones(1)        #randomQ = np.concatenate((randomQ, EOS))
-        questions.append(randomQ)
-        
-    padded_questions = pad_sequences(questions)
-        
-    print(questions)
-    print('')
-    print(padded_questions)
-    print('\n')     
-    
-    
-    
-    DAriA_dcd = Differential_AriEL_dcd(vocabSize = vocabSize,
-                                       embDim = embDim,
-                                       latDim = latDim)
-
-
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    print(K.int_shape(input_question))
-    print(input_question.dtype)
-    continuous_latent_space = DAriA_dcd.encode(input_question)
-    print(K.int_shape(continuous_latent_space))
-    print(continuous_latent_space.dtype)
-    # in between some neural operations can be defined
-    discrete_output = DAriA_dcd.decode(continuous_latent_space)
-    print(K.int_shape(discrete_output[0]), K.int_shape(discrete_output[1]))
-    print(discrete_output[0].dtype, discrete_output[1].dtype)
-    print('')
-    
-    # vocabSize + 1 for the keras padding + 1 for EOS
-    model = Model(inputs=input_question, outputs=discrete_output + [continuous_latent_space])
-    
-    #model = DAriA_dcd.ae()
-    model.summary()
-    #print('')
-    
-    #print(partialModel.predict(question)[0])
-    for layer in model.predict(padded_questions):
-        print(layer)
-        print('\n')
+   
 
 
     
-    
-def simple_tests():
-    lstm = LSTM(12)
-    print('return_state' in lstm.get_config())
-    
-    dense = Dense(10)
-    
-    inputs1 = Input((3,))
-    dense1 = dense(inputs1)
-    outputs1 = Dense(5)(dense1)
-    model1 = Model(inputs=inputs1, outputs=outputs1)
-    model1.summary()
-    print('-------------------------------------------------------------------------------------------------')
-    
-    
-    inputs2 = Input((5,))
-    dense_i = Dense(3)(inputs2)
-    dense2 = dense(dense_i)
-    outputs2 = Dense(2)(dense2)
-    model2 = Model(inputs=inputs2, outputs=outputs2)
-    model2.summary()
-    print('-------------------------------------------------------------------------------------------------')
-    
-    
-    inputs3 = Input((3,))
-    outputs3 = model2(model1(inputs3))
-    model3 = Model(inputs=inputs3, outputs=outputs3)
-    model3.summary()
-    print('-------------------------------------------------------------------------------------------------')
-    
-    
-    output = model3.predict(np.random.rand(2,3))
-    print(output)
+def print_base(a_class):
+    for base in a_class.__class__.__bases__:
+        print(base.__name__)
+        
+        
     
     
     
 if __name__ == '__main__':
-
+    pass
     #test_vAriEL_Encoder_model()
     #test_vAriEL_Decoder_model()
-    test_vAriEL_AE_dcd_model()
+    #test_vAriEL_AE_dcd_model()
     #simple_tests()
     
     
