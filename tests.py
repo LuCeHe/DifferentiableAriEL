@@ -13,12 +13,11 @@ import tensorflow as tf
 
 
 
-vocabSize = 2
-max_senLen = 3
-batchSize = 3
-latDim = 9
+vocabSize = 3
+max_senLen = 4
+batchSize = 2
+latDim = 4
 embDim = 2
-max_senLen = 10
                                 
                                 
 def random_sequences_and_points():
@@ -37,6 +36,8 @@ def random_sequences_and_points():
     print('')
     print(padded_questions)
     print('')
+    print(points)
+    print('')
     print('')
 
     return padded_questions, points
@@ -48,6 +49,9 @@ def test_vAriEL_Encoder_model():
     # 1. random numpy arrays pass through the encoder succesfully
     # 2. gradients /= None
     # 3. fit method works
+
+    # TODO
+    # 4. gradient doesn't pass through Embedding or LSTM
     
     print("""
           Test Encoding
@@ -89,10 +93,12 @@ def test_vAriEL_Decoder_model():
     
     # CHECKED
     # 1. random numpy arrays pass through the encoder succesfully
-    # TODO
     # 2. gradients /= None
     # 3. fit method works
     
+    # TODO
+    # 4. gradient doesn't pass through Embedding or LSTM
+
     print("""
           Test Decoding
           
@@ -101,10 +107,14 @@ def test_vAriEL_Decoder_model():
     questions, points = random_sequences_and_points()
     
     # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize, embDim = embDim, latDim = latDim, max_senLen = max_senLen, output_type='tokens')
+    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 output_type='tokens')
     #print(partialModel.predict(question)[0])
     for layer in model.predict(points):
-        print(layer.shape)
+        print(layer)
         print('')
         
 
@@ -124,12 +134,16 @@ def test_vAriEL_Decoder_model():
           
           """)
     
-    #model.compile(loss='mean_squared_error', optimizer='sgd')
-    #model.fit(points, questions)    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(points, questions)    
 
-
-
+   
+    
+    
+    
+    
+    
 if __name__ == '__main__':
     test_vAriEL_Decoder_model()
-    #print('=========================================================================================')
+    print('=========================================================================================')
     #test_vAriEL_Encoder_model()

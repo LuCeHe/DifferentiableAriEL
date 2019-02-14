@@ -162,6 +162,14 @@ def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, em
       
     rnn_output = rnn(concatenation)    
     softmax = TimeDistributed(Activation('softmax'))(rnn_output)
+
+    # this gradients don't work, FIXME!
+    #grad = tf.gradients(xs=input_questions, ys=rnn_output)
+    #print('grad (xs=input_questions, ys=rnn_output):   ', grad)            
+    #grad = tf.gradients(xs=input_questions, ys=embed)
+    #print('grad (xs=input_questions, ys=embed):        ', grad)            
+    #grad = tf.gradients(xs=input_questions, ys=softmax)
+    #print('grad (xs=input_questions, ys=softmax):      ', grad)            
     
     probs = probsToPoint(vocabSize, latDim)([softmax, input_questions])
     model = Model(inputs=input_questions, outputs=probs)
@@ -249,19 +257,19 @@ def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 1
     lstm_output = rnn(RNN_starter)    
     
     grad = tf.gradients(xs=RNN_starter, ys=lstm_output)
-    print('grad:   ', grad)
+    #print('grad:   ', grad)
     
     first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
     
     grad = tf.gradients(xs=RNN_starter, ys=first_softmax)
-    print('grad:   ', grad)
+    #print('grad:   ', grad)
     
     probs = pointToProbs(vocabSize, latDim, embDim, max_senLen, rnn=rnn, embedding=embedding, output_type=output_type)([first_softmax, input_point])
 
     grad = tf.gradients(xs=input_point, ys=probs)
-    print('grad:   ', grad)
+    print('grad (xs=input_point, ys=probs):   ', grad)            # YES!!!
     grad = tf.gradients(xs=RNN_starter, ys=probs)
-    print('grad:   ', grad)
+    print('grad (xs=RNN_starter, ys=probs):   ', grad)            # YES!!!
     
     model = Model(inputs=input_point, outputs=probs)
     return model
@@ -287,8 +295,9 @@ class pointToProbs(object):
 
         
         def upTheTree(inputs):
-            one_softmax, input_point = inputs
+            initial_softmax, input_point = inputs
             
+            one_softmax = initial_softmax
             unfolding_point = input_point
             
             final_softmaxes = one_softmax
@@ -304,24 +313,29 @@ class pointToProbs(object):
                 cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
                 cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
                 
-                #print(K.int_shape(unfolding_point))
                 expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)
+                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)                
                 
-                larger = tf.greater(cumsum, value_of_interest)
-                larger_exclusive = tf.greater(cumsum_exclusive, value_of_interest)
+                # determine the token selected (2 steps: xor and token)
+                # differentiable xor (instead of tf.logical_xor)                
+                c_minus_v = tf.subtract(cumsum, value_of_interest)
+                ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
+                signed_xor = c_minus_v*ce_minus_c
+                abs_sx = tf.abs(signed_xor)
+                almost_xor = tf.divide(signed_xor, abs_sx)
+                almost_xor = tf.add(almost_xor, -1)
+                xor = tf.abs(tf.divide(almost_xor, -2))
                 
-                
-                # determine the token selected
-                xor = tf.logical_xor(larger, larger_exclusive)
-                xor = tf.cast(xor, tf.float32)                
-                token = K.argmax(xor, axis=1)
+                # differentiable argmax (instead of tf.argmax)                
+                almost_token = tf.divide(c_minus_v, tf.abs(c_minus_v))
+                almost_token = tf.abs(tf.divide(tf.add(almost_token, -1),-2))
+                token = tf.reduce_sum(almost_token, axis=1)
                 token = tf.expand_dims(token, axis=1)
                 
                 # expand dimensions to be able to performa a proper matrix 
                 # multiplication after
                 xor = tf.expand_dims(xor, axis=1)
-                cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)           
+                cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)                   
                 
                 # the c_iti value has to be subtracted to the point for the 
                 # next round on this dimension                
@@ -331,7 +345,6 @@ class pointToProbs(object):
                 one_hots = tf.squeeze(one_hots, axis=1)
                 
                 c_iti = c_iti_value*one_hots
-                
                 unfolding_point = tf.subtract(unfolding_point, c_iti)
                 
                 # the p_iti value has to be divided to the point for the next
@@ -355,6 +368,17 @@ class pointToProbs(object):
                 
                 final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1, name='concat_softmaxes')
                 
+                
+                # this gradients don't work, FIXME! all others seem to work
+                #grad = tf.gradients(xs=initial_softmax, ys=embed)
+                #print('grad (xs=initial_softmax, ys=embed):              ', grad)
+                #grad = tf.gradients(xs=initial_softmax, ys=one_softmax)
+                #print('grad (xs=initial_softmax, ys=one_softmax):        ', grad)
+                #grad = tf.gradients(xs=input_point, ys=embed)
+                #print('grad (xs=input_point, ys=embed):                  ', grad)
+                #grad = tf.gradients(xs=input_point, ys=one_softmax)
+                #print('grad (xs=input_point, ys=one_softmax):            ', grad)
+                
                 if final_tokens == None:
                     final_tokens = token
                 else:
@@ -364,6 +388,7 @@ class pointToProbs(object):
                 curDim += 1
                 if curDim >= self.latDim:
                     curDim = 0
+                    
             
             # remove last softmax, since the initial was given by the an initial
             # zero vector
@@ -374,6 +399,7 @@ class pointToProbs(object):
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
         tokens, softmaxes = Lambda(upTheTree)([first_softmax, input_point])
+        #output = Lambda(upTheTree)([first_softmax, input_point])
         
         if self.output_type == 'tokens':
             output = tokens
