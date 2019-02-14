@@ -25,7 +25,7 @@ def random_sequences_and_points():
     questions = []
     points = np.random.rand(batchSize, latDim)
     for _ in range(batchSize):
-        sentence_length = np.random.choice(max_senLen)
+        sentence_length = max_senLen #np.random.choice(max_senLen)
         randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
         #EOS = (vocabSize+1)*np.ones(1)
         #randomQ = np.concatenate((randomQ, EOS))
@@ -146,4 +146,4 @@ def test_vAriEL_Decoder_model():
 if __name__ == '__main__':
     test_vAriEL_Decoder_model()
     print('=========================================================================================')
-    #test_vAriEL_Encoder_model()
+    test_vAriEL_Encoder_model()
