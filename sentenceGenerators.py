@@ -98,6 +98,7 @@ class c2n_generator(object):
         self.maxlen = maxlen
         self.tokens = sorted(list(string.printable))
         self.vocabulary = Vocabulary(self.tokens)
+        # +1 to take into account padding
         self.vocabSize = self.vocabulary.getMaxVocabularySize()
         
         #self.nltk_generate = generate(self.grammar, n = self.batch_size)
@@ -106,16 +107,16 @@ class c2n_generator(object):
     def generator(self):
         while True:
             sentences = [[''.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
-            #print(sentences)
             sentencesCharacters = sentencesToCharacters(sentences)
-            sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
+            # offset=1 to take into account padding
+            sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens, offset=1) for listOfTokens in sentencesCharacters]
             padded_indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
             yield padded_indices
             
     def indicesToSentences(self, indices):
         if not isinstance(indices[0][0], int):
             indices =  [[int(i) for i in list_idx] for list_idx in indices]
-        return self.vocabulary.indicesToSentences(indices)
+        return self.vocabulary.indicesToSentences(indices, offset=1)
         
 
     
@@ -159,7 +160,12 @@ def test_generator_class():
     generator_class = c2n_generator(grammar, maxlen=20)
     generator = generator_class.generator()
     
+    print(generator_class.vocabSize)
+    
     indicess = next(generator)
+    indicess =  [[ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
+                  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
+                  27.,  2., 26., 25., 31., 66., 84., 74., 41., 57., 94., 94.]]
     sentences = generator_class.indicesToSentences(indicess)
     
     print('')
@@ -170,6 +176,13 @@ def test_generator_class():
     print('')
     print('')
     
+    
+def test_problems():
+    
+    
+    indicess =  [[ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
+                  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
+                  27.,  2., 26., 25., 31., 66., 84., 74., 41., 57., 94., 94.]]
     
     
 if __name__ == '__main__':

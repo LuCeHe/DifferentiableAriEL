@@ -89,16 +89,17 @@ def main():
                   
                   """)
             indicess = ae_model.predict(sentences)
-            sentences = generator_class.indicesToSentences(indicess)
-            print(sentences)
+            sentences_reconstructed = generator_class.indicesToSentences(indicess)
+            print(indicess)
+            print(sentences_reconstructed)
             print("""
                   test decoder
                   
                   """)
             noise = np.random.rand(batchSize, latDim)
             indicess = decoder_model.predict(noise)
-            sentences = generator_class.indicesToSentences(indicess)
-            print(sentences)
+            sentences_generated = generator_class.indicesToSentences(indicess)
+            print(sentences_generated)
             
 
 
