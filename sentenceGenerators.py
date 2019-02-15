@@ -98,25 +98,30 @@ class c2n_generator(object):
         self.maxlen = maxlen
         self.tokens = sorted(list(string.printable))
         self.vocabulary = Vocabulary(self.tokens)
+        print(self.vocabulary.indicesByTokens)
+        print('')
         # +1 to take into account padding
         self.vocabSize = self.vocabulary.getMaxVocabularySize()
         
         #self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
         
-    def generator(self):
+    def generator(self, offset=0):
         while True:
             sentences = [[''.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
+            #print('')
+            #print(sentences)
+            #print('')
             sentencesCharacters = sentencesToCharacters(sentences)
             # offset=1 to take into account padding
-            sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens, offset=1) for listOfTokens in sentencesCharacters]
+            sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens, offset=offset) for listOfTokens in sentencesCharacters]
             padded_indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
             yield padded_indices
             
-    def indicesToSentences(self, indices):
+    def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
             indices =  [[int(i) for i in list_idx] for list_idx in indices]
-        return self.vocabulary.indicesToSentences(indices, offset=1)
+        return self.vocabulary.indicesToSentences(indices, offset=offset)
         
 
     
