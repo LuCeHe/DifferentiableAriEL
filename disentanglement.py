@@ -72,11 +72,6 @@ def generate_3_almost_overlapping_gaussians(samples=500):
 def measure_disentanglement():
     pass
 
-def plot_clusters(data, algorithm, args, kwds):
-    
-    
-    
-    return labels
 
 
 def main():
