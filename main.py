@@ -40,15 +40,12 @@ grammar = CFG.fromstring("""
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 6 #24
-batchSize = 10
-latDim = 16
-embDim = 10
-epochs = 10
-latentTestRate =  2
-
-    
-    
-    
+batchSize = 128
+latDim = 7
+embDim = 5
+epochs = 100
+epochs_in = 20
+latentTestRate = 10
     
 def main():
 
@@ -94,6 +91,8 @@ def main():
     second_softmax_evolution = []
     third_softmax_evolution = []
     for epoch in range(epochs):
+        print('epoch:    ', epoch)
+        
         print("""
               fit ae
               
@@ -101,10 +100,10 @@ def main():
         indices_sentences = next(generator)
         indicess = ae_model.predict(indices_sentences)
         sentences_reconstructed = generator_class.indicesToSentences(indicess)
-        ae_model.fit(indices_sentences, indices_sentences, epochs)    
+        ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in)    
         
         # FIXME: noise in the latent rep
-        if epoch%latentTestRate:
+        if epoch%latentTestRate == 0:
             print("""
                   test ae
                   
@@ -142,11 +141,11 @@ def main():
              
             
     print(first_softmax_evolution)
-    plot_softmax_evolution(first_softmax_evolution)
+    plot_softmax_evolution(first_softmax_evolution, 'first_softmax_evolution')
     print(second_softmax_evolution)
-    plot_softmax_evolution(second_softmax_evolution)
+    plot_softmax_evolution(second_softmax_evolution, 'second_softmax_evolution')
     print(third_softmax_evolution)
-    plot_softmax_evolution(third_softmax_evolution)
+    plot_softmax_evolution(third_softmax_evolution, 'third_softmax_evolution')
     print('')
     print(generator_class.vocabulary.indicesByTokens)
     print('')
@@ -154,18 +153,20 @@ def main():
 
 
 
-def plot_softmax_evolution(softmaxes_list):
+def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
     import matplotlib.pylab as plt
     
+    f = plt.figure()
     index = range(len(softmaxes_list[0]))
     for softmax in softmaxes_list:
         plt.bar(index, softmax)
         
-        
+    
     plt.xlabel('Token')
     plt.ylabel('Probability')    
     plt.title('softmax evolution during training')
     plt.show()
+    f.savefig(name + ".pdf", bbox_inches='tight')
         
     
     
