@@ -96,8 +96,14 @@ class c2n_generator(object):
         self.grammar = grammar
         self.batch_size = batch_size
         self.maxlen = maxlen
-        self.tokens = sorted(list(string.printable))
-        self.vocabulary = Vocabulary(self.tokens)
+        
+        tempVocabulary = Vocabulary.fromGrammar(grammar)
+        tokens = tempVocabulary.tokens[1:]
+        tokens = set(sorted(' '.join(tokens)))
+        self.vocabulary = Vocabulary(tokens)
+        #self.tokens = sorted(list(string.printable))
+        #self.vocabulary = Vocabulary(self.tokens)
+        print('')
         print(self.vocabulary.indicesByTokens)
         print('')
         # +1 to take into account padding
@@ -168,9 +174,6 @@ def test_generator_class():
     print(generator_class.vocabSize)
     
     indicess = next(generator)
-    indicess =  [[ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
-                  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
-                  27.,  2., 26., 25., 31., 66., 84., 74., 41., 57., 94., 94.]]
     sentences = generator_class.indicesToSentences(indicess)
     
     print('')

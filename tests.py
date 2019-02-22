@@ -16,9 +16,11 @@ from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
 import tensorflow as tf
 
 
+# TODO: move to unittest type of test
 
-vocabSize = 3
-max_senLen = 4
+
+vocabSize = 5
+max_senLen = 6
 batchSize = 2
 latDim = 4
 embDim = 2
@@ -53,26 +55,23 @@ def test_vAriEL_Encoder_model():
     # 1. random numpy arrays pass through the encoder succesfully
     # 2. gradients /= None
     # 3. fit method works
-
-    # TODO
-    # 4. gradient doesn't pass through Embedding or LSTM
     
     print("""
           Test Encoding
           
           """)        
 
-    #partialModel = partial_vAriEL_Encoder_model(vocabSize = 4, embDim = 2)
     
     questions, points = random_sequences_and_points()
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Encoder_model(vocabSize = vocabSize, embDim = 2, latDim = latDim)
+    model = vAriEL_Encoder_model(vocabSize = vocabSize, embDim = embDim, latDim = latDim)
     #print(partialModel.predict(question)[0])
     for layer in model.predict(questions):
-        print(layer.shape)
-        print('')
-        print('')
+        #print(layer.shape)
+        assert layer.shape[0] == latDim
+        #print('')
+        #print('')
 
     print("""
           Test Gradients
@@ -82,9 +81,10 @@ def test_vAriEL_Encoder_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
-
+        #print(w)
+        #print('        ', g)  
+        if not isinstance(g, tf.IndexedSlices):
+            assert g[0] != None
     print("""
           Test fit
           
@@ -100,9 +100,6 @@ def test_vAriEL_Decoder_model():
     # 2. gradients /= None
     # 3. fit method works
     
-    # TODO
-    # 4. gradient doesn't pass through Embedding or LSTM
-
     print("""
           Test Decoding
           
@@ -116,11 +113,12 @@ def test_vAriEL_Decoder_model():
                                  latDim = latDim, 
                                  max_senLen = max_senLen, 
                                  output_type='tokens')
-    #print(partialModel.predict(question)[0])
-    for layer in model.predict(points):
-        print(layer)
-        print('')
-        
+    
+    prediction = model.predict(points)
+    
+    # The batch size of predicted tokens should contain different sequences of tokens
+    assert np.any(prediction[0] != prediction[1])
+    
 
     print("""
           Test Gradients
@@ -130,9 +128,9 @@ def test_vAriEL_Decoder_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
-
+        #print(w)
+        #print('        ', g)  
+        assert g[0] != None
     print("""
           Test Fit
           
@@ -177,10 +175,6 @@ def test_vAriEL_AE_dcd_model():
         print(layer)
         print('\n')
         
-    print('')
-    print(questions)
-    print('')
-    print('')
     
     print("""
           Test Gradients
@@ -190,8 +184,9 @@ def test_vAriEL_AE_dcd_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
+        #print(w)
+        #print('        ', g)  
+        assert g[0] != None
 
     print("""
           Test Fit
@@ -249,8 +244,9 @@ def test_vAriEL_AE_cdc_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
+        #print(w)
+        #print('        ', g)
+        assert g[0] != None
 
     print("""
           Test Fit
@@ -259,8 +255,6 @@ def test_vAriEL_AE_cdc_model():
     
     model.compile(loss='mean_squared_error', optimizer='sgd')
     model.fit(points, points)    
-
-
 
 
 

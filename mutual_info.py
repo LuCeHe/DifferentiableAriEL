@@ -98,6 +98,8 @@ def mutual_information(variables, k=1):
         raise AttributeError(
                 "Mutual information must involve at least 2 variables")
     all_vars = np.hstack(variables)
+    print(all_vars.shape)
+    print([print(var.shape) for var in variables])
     return (sum([entropy(X, k=k) for X in variables])
             - entropy(all_vars, k=k))
 
@@ -237,9 +239,57 @@ def test_mutual_information_2d():
     np.testing.assert_array_less(MI_th, MI_est  + .2)
 
 
+def test_sample_mutual_information():
+    # Mutual information between two correlated gaussian variables
+    # Entropy of a 2-dimensional gaussian variable
+    n = 500
+    
+    
+    
+    cov = [[1, 0], [0, 1]]  # diagonal covariance
+    
+    mean = [0, -2]
+    gauss0 = np.random.multivariate_normal(mean, cov, n)
+    
+    mean = [0, 2]
+    gauss1 = np.random.multivariate_normal(mean, cov, n)
+    
+    #print(gauss0.shape)
+    
+    
+    
+    point = np.expand_dims(np.array([0, -1]), axis=0)
+    #print(point.shape)
+    
+    #MI_point = mutual_information((gauss0, point), k=5)
+    
+    rng = np.random.RandomState(0)
+    #P = np.random.randn(2, 2)
+    P = np.array([[1, 0], [0.5, 1]])
+    C = np.dot(P, P.T)
+    U = rng.randn(2, n)
+    Z = np.dot(P, U).T
+    X = Z[:, 0]
+    X = X.reshape(len(X), 1)
+    Y = Z[:, 1]
+    Y = Y.reshape(len(Y), 1)
+    # in bits
+    MI_est = mutual_information((X, Y), k=5)
+    MI_th = (entropy_gaussian(C[0, 0])
+             + entropy_gaussian(C[1, 1])
+             - entropy_gaussian(C)
+            )
+    # Our estimator should undershoot once again: it will undershoot more
+    # for the 2D estimation that for the 1D estimation
+    print(MI_est, MI_th)
+    np.testing.assert_array_less(MI_est, MI_th)
+    np.testing.assert_array_less(MI_th, MI_est  + .3)
+
+
 if __name__ == '__main__':
     # Run our tests
-    test_entropy()
-    test_mutual_information()
-    test_degenerate()
-    test_mutual_information_2d()
+    #test_entropy()
+    #test_mutual_information()
+    #test_degenerate()
+    #test_mutual_information_2d()
+    test_sample_mutual_information()

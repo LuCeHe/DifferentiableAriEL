@@ -32,15 +32,24 @@ grammar = CFG.fromstring("""
                          """)
 
 
+# grammar cannot have recursion!
+grammar = CFG.fromstring("""
+                         S -> 'ABC' | 'AAC' | 'BA'
+                         """)
+
+
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 24
-batchSize = 100
+max_senLen = 6 #24
+batchSize = 10
 latDim = 16
 embDim = 10
-epochs = 100
+epochs = 10
 latentTestRate =  2
 
-
+    
+    
+    
+    
 def main():
 
     
@@ -59,7 +68,7 @@ def main():
                                    embDim = embDim,
                                    latDim = latDim,
                                    max_senLen = max_senLen,
-                                   output_type = 'tokens')
+                                   output_type = 'both')
 
 
     input_question = Input(shape=(None,), name='discrete_sequence')
@@ -68,10 +77,10 @@ def main():
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    ae_model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])        
+    ae_model = Model(inputs=input_question, outputs=discrete_output[0])   # + [continuous_latent_space])        
     
     
-    clippedAdam = optimizers.Adam(clipnorm=1.)
+    clippedAdam = optimizers.Adam(lr=2., clipnorm=1.)
     ae_model.compile(loss='mean_squared_error', optimizer=clippedAdam)
     print('')
     ae_model.summary()
@@ -81,8 +90,9 @@ def main():
     discrete_output = DAriA_dcd.decode(input_point)
     decoder_model = Model(inputs=input_point, outputs=discrete_output)
     
-
-    
+    first_softmax_evolution = []
+    second_softmax_evolution = []
+    third_softmax_evolution = []
     for epoch in range(epochs):
         print("""
               fit ae
@@ -118,17 +128,54 @@ def main():
                   
                   """)
             noise = np.random.rand(batchSize, latDim)
-            indicess = decoder_model.predict(noise)
+            indicess, softmaxes = decoder_model.predict(noise)
             sentences_generated = generator_class.indicesToSentences(indicess)
             print('generated sentences')
             print('')
             print(sentences_generated)
             print('')
+            print(softmaxes[0][0])
+            print('')
+            first_softmax_evolution.append(softmaxes[0][0])
+            second_softmax_evolution.append(softmaxes[0][1])
+            third_softmax_evolution.append(softmaxes[0][2])
+             
+            
+    print(first_softmax_evolution)
+    plot_softmax_evolution(first_softmax_evolution)
+    print(second_softmax_evolution)
+    plot_softmax_evolution(second_softmax_evolution)
+    print(third_softmax_evolution)
+    plot_softmax_evolution(third_softmax_evolution)
+    print('')
+    print(generator_class.vocabulary.indicesByTokens)
+    print('')
+    print(grammar)
 
 
 
-
-
+def plot_softmax_evolution(softmaxes_list):
+    import matplotlib.pylab as plt
+    
+    index = range(len(softmaxes_list[0]))
+    for softmax in softmaxes_list:
+        plt.bar(index, softmax)
+        
+        
+    plt.xlabel('Token')
+    plt.ylabel('Probability')    
+    plt.title('softmax evolution during training')
+    plt.show()
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 if __name__ == '__main__':
     main()
-

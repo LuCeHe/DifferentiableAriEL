@@ -51,20 +51,6 @@ logger = logging.getLogger(__name__)
 
 
 
-
-
-def partial_vAriEL_Encoder_model(vocabSize = 101, embDim = 2):    
-    
-    input_questions = Input(shape=(None,), name='question')
-    embed = Embedding(vocabSize, embDim)(input_questions)
-        
-    # plug biLSTM    
-    lstm = LSTM(vocabSize, return_sequences=True)(embed)    
-    softmax = TimeDistributed(Activation('softmax'))(lstm)
-    
-    # up to here it works
-    model = Model(inputs=input_questions, outputs=softmax)
-    return model
                  
 
 # FIXME: don't pass arguments as 
@@ -135,7 +121,8 @@ class vAriEL_Encoder_Layer(object):
 
 def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):      
     
-    layer = vAriEL_Encoder_Layer(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None)        
+    layer = vAriEL_Encoder_Layer(vocabSize = vocabSize, embDim = embDim, 
+                                 latDim = latDim, rnn = rnn, embedding = embedding)        
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -253,9 +240,17 @@ class vAriEL_Decoder_Layer(object):
 
 
 
-def vAriEL_Decoder_model(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10, rnn=None, embedding=None, output_type='both'):  
+def vAriEL_Decoder_model(vocabSize = 101, 
+                         embDim = 2, 
+                         latDim = 4, 
+                         max_senLen = 10, 
+                         rnn=None, 
+                         embedding=None, 
+                         output_type='both'):  
     
-    layer = vAriEL_Decoder_Layer(vocabSize = 101, embDim = 2, latDim = 4, max_senLen = 10, rnn=None, embedding=None, output_type='both')
+    layer = vAriEL_Decoder_Layer(vocabSize = vocabSize, embDim = embDim, 
+                                 latDim = latDim, max_senLen = max_senLen, 
+                                 rnn=rnn, embedding=embedding, output_type=output_type)
     input_point = Input(shape=(latDim,), name='input_point')
     output = layer(input_point)    
     model = Model(inputs=input_point, outputs=output)
