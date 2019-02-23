@@ -15,6 +15,7 @@ from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          RepeatVector, Activation, GaussianNoise
 import keras.backend as K
 from keras.legacy import interfaces
+from keras.engine.base_layer import Layer
 import tensorflow as tf
 
 
@@ -28,22 +29,29 @@ latDim = 4
 embDim = 2
                                 
                                 
-def random_sequences_and_points():
+def random_sequences_and_points(repeated=False):
     
-    questions = []
-    points = np.random.rand(batchSize, latDim)
-    for _ in range(batchSize):
+    if not repeated:
+        questions = []
+        points = np.random.rand(batchSize, latDim)
+        for _ in range(batchSize):
+            sentence_length = max_senLen #np.random.choice(max_senLen)
+            randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
+            #EOS = (vocabSize+1)*np.ones(1)
+            #randomQ = np.concatenate((randomQ, EOS))
+            questions.append(randomQ)
+    else:
+        point = np.random.rand(1, latDim)
         sentence_length = max_senLen #np.random.choice(max_senLen)
         randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
-        #EOS = (vocabSize+1)*np.ones(1)
-        #randomQ = np.concatenate((randomQ, EOS))
-        questions.append(randomQ)
         
     padded_questions = pad_sequences(questions)
-    print(questions)
+    #print(questions)
     print('')
+    print('padded quesitons')
     print(padded_questions)
     print('')
+    print('points')
     print(points)
     print('')
     print('')
@@ -261,10 +269,10 @@ def test_vAriEL_AE_cdc_model():
 
 
 
-class testActiveGaussianNoise(GaussianNoise):
+class testActiveGaussianNoise(Layer):
     @interfaces.legacy_gaussiannoise_support
     def __init__(self, stddev, **kwargs):
-        super(GaussianNoise, self).__init__(**kwargs)
+        super(testActiveGaussianNoise, self).__init__(**kwargs)
         self.supports_masking = True
         self.stddev = stddev
 
@@ -273,16 +281,18 @@ class testActiveGaussianNoise(GaussianNoise):
             return inputs + K.random_normal(shape=K.shape(inputs),
                                             mean=0.,
                                             stddev=self.stddev)
-        return noised
+        return K.in_train_phase(noised, noised, training=training)
 
     def get_config(self):
         config = {'stddev': self.stddev}
-        base_config = super(GaussianNoise, self).get_config()
+        base_config = super(testActiveGaussianNoise, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):
         return input_shape
         
+    
+    
 def test_stuff_inside_AE():
     
     
@@ -304,9 +314,14 @@ def test_stuff_inside_AE():
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
 
-    #continuous_latent_space = Dense(latDim)(continuous_latent_space)
-    continuous_latent_space = GaussianNoise(stddev=.5)(continuous_latent_space) # WORKS!
-    #continuous_latent_space = testActiveGaussianNoise(stddev=5)(continuous_latent_space) # WORKS!
+    # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
+    #continuous_latent_space = Dense(latDim)(continuous_latent_space)                      
+    
+    # GaussianNoise(stddev=.02) WORKS!! (it fits) and loss \= 0!! but stddev>=.2 not :(
+    #continuous_latent_space = GaussianNoise(stddev=.02)(continuous_latent_space) 
+    
+    # testActiveGaussianNoise(stddev=.02) WORKS!! but not enough at test time :()
+    continuous_latent_space = testActiveGaussianNoise(stddev=.05)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -353,4 +368,8 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_vAriEL_AE_cdc_model()
     print('=========================================================================================')    
-    test_stuff_inside_AE()
+    #test_stuff_inside_AE()
+    
+    
+    # to test a bit more if the layers are doing sensible things
+    random_sequences_and_points(True)
