@@ -13,7 +13,8 @@ from nltk import CFG
 from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
 from sentenceGenerators import c2n_generator
 from keras.models import Model
-from keras.layers import Input
+from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
+                         GaussianNoise
 from keras import optimizers
 from keras.callbacks import TensorBoard
 from utils import checkDuringTraining, plot_softmax_evolution, make_directories
@@ -44,9 +45,9 @@ max_senLen = 6 #24
 batchSize = 128
 latDim = 7
 embDim = 5
-epochs = 3
-epochs_in = 2
-latentTestRate = 2
+epochs = 1
+epochs_in = 100
+latentTestRate = 10
 
 
 
@@ -86,17 +87,19 @@ def main():
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
+    continuous_latent_space = GaussianNoise(stddev=0.)(continuous_latent_space)
+
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     ae_model = Model(inputs=input_question, outputs=discrete_output[0])   # + [continuous_latent_space])        
     
     
-    clippedAdam = optimizers.Adam(lr=2., clipnorm=1.)
+    clippedAdam = optimizers.Adam(lr=.02, clipnorm=1.)
     ae_model.compile(loss='mean_squared_error', optimizer=clippedAdam)
     print('')
     ae_model.summary()
-    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=0,  
-                              write_graph=True, write_images=True)
+    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
+                              write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
     
     # reuse decoder to define a model to test generation capacity
@@ -143,6 +146,50 @@ def main():
 
 
     
+def main_simple():
+
+    # create experiment folder to save the results
+    experiment_path = make_directories()
+    
+    # dataset to be learned
+    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen)
+    generator = generator_class.generator()
+
+    vocabSize = generator_class.vocabSize    
+    
+    print("""
+          Test Auto-Encoder on Grammar
+          
+          """)        
+
+
+    input_question = Input(shape=(max_senLen,), name='discrete_sequence', dtype='int32')
+    embed = Embedding(vocabSize, embDim)(input_question)
+    rnn_output = LSTM(vocabSize, return_sequences=True)(embed)
+    output = TimeDistributed(Dense(1, activation='sigmoid'))(rnn_output)
+    output = Reshape((max_senLen,))(output)
+    
+    ae_model = Model(inputs=input_question, outputs=output)   # + [continuous_latent_space])        
+    
+    
+    clippedAdam = optimizers.Adam(lr=2., clipnorm=1.)
+    ae_model.compile(loss='binary_crossentropy', optimizer=clippedAdam)
+    print('')
+    ae_model.summary()
+    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
+                              write_graph=False, write_images=False, write_grads=True)
+    tensorboard.set_model(ae_model)
+    
+    valIndices = next(generator)
+    print(valIndices.shape)
+    for epoch in range(epochs):
+        print('epoch:    ', epoch)
+        
+        indices_sentences = next(generator) 
+        ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
+                     validation_data = (valIndices, valIndices), callbacks=[tensorboard], verbose=1)   
+
+
     
     
 if __name__ == '__main__':

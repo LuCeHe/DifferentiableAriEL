@@ -17,28 +17,15 @@ vAriEL for New Word Acquisition
 
 """
 
-import os
 import logging
-import numpy as np
-from nltk import CFG
-import scipy.linalg
-import pickle
-from decimal import Decimal, localcontext, Context
-
-from nlp import GrammarLanguageModel, Vocabulary, addEndTokenToGrammar, \
-                NltkGrammarSampler, tokenize
-
-from AriEL import SentenceEncoder, SentenceDecoder, SentenceEmbedding
-from sentenceGenerators import _charactersNumsGenerator
 
 import tensorflow as tf
 
 import keras.backend as K
-from keras.models import Sequential, Model
-from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
-                         Bidirectional, LSTM, Lambda, TimeDistributed, \
-                         RepeatVector, Activation
-from keras.preprocessing.sequence import pad_sequences
+from keras.models import Model
+from keras.layers import concatenate, Input, Embedding, \
+                         LSTM, Lambda, TimeDistributed, \
+                         Activation
 
 
 from numpy.random import seed
@@ -280,7 +267,10 @@ class pointToProbs(object):
             initial_softmax, input_point = inputs
             
             one_softmax = initial_softmax
-            unfolding_point = input_point
+            
+            # by clipping the values, it can accept inputs that go beyong the 
+            # unit hypercube
+            unfolding_point = K.clip(input_point,0,1)
             
             final_softmaxes = one_softmax
             final_tokens = None
