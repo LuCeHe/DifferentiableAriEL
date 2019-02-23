@@ -41,24 +41,15 @@ grammar = CFG.fromstring("""
 
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 6 #24
+max_senLen = 4 #24
 batchSize = 128
 latDim = 7
 embDim = 5
 epochs = 1
-epochs_in = 100
-latentTestRate = 10
+epochs_in = 10
+latentTestRate = int(epochs_in/10)
 
 
-
-import keras.backend as K
-class LRTensorBoard(TensorBoard):
-    def __init__(self, log_dir, *args, **kwargs):  # add other arguments to __init__ if you need
-        super().__init__(log_dir=log_dir, *args, **kwargs)
-
-    def on_epoch_end(self, epoch, logs=None):
-        logs.update({'lr': K.eval(self.model.optimizer.lr)})
-        super().on_epoch_end(epoch, logs)
 
 
     
@@ -67,7 +58,7 @@ def main():
     # create experiment folder to save the results
     experiment_path = make_directories()
     
-    # dataset to be learned
+    # dataset to be learned<
     generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen)
     generator = generator_class.generator()
 
@@ -87,7 +78,7 @@ def main():
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
-    continuous_latent_space = GaussianNoise(stddev=0.)(continuous_latent_space)
+    continuous_latent_space = GaussianNoise(stddev=0.2)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -101,6 +92,7 @@ def main():
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
+    callbacks = [] # [tensorboard]
     
     # reuse decoder to define a model to test generation capacity
     input_point = Input(shape=(latDim,), name='continuous_input')
@@ -122,7 +114,7 @@ def main():
               """)
         indices_sentences = next(generator)
         ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
-                     callbacks=[tensorboard], validation_data = (valIndices, valIndices))    
+                     callbacks=callbacks, validation_data = (valIndices, valIndices))    
         
         # FIXME: noise in the latent rep
         if epoch%latentTestRate == 0:

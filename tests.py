@@ -12,7 +12,9 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
-                         RepeatVector, Activation
+                         RepeatVector, Activation, GaussianNoise
+import keras.backend as K
+from keras.legacy import interfaces
 import tensorflow as tf
 
 
@@ -151,7 +153,7 @@ def test_vAriEL_AE_dcd_model():
     
     
     print("""
-          Test Auto-Encoder
+          Test Auto-Encoder DCD
           
           """)        
 
@@ -169,7 +171,7 @@ def test_vAriEL_AE_dcd_model():
     
     # vocabSize + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
-    #model.summary()
+    model.summary()
     
     for layer in model.predict(questions):
         print(layer)
@@ -184,9 +186,9 @@ def test_vAriEL_AE_dcd_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        #print(w)
-        #print('        ', g)  
-        assert g[0] != None
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
 
     print("""
           Test Fit
@@ -208,7 +210,7 @@ def test_vAriEL_AE_cdc_model():
     
     
     print("""
-          Test Auto-Encoder
+          Test Auto-Encoder CDC
           
           """)        
 
@@ -258,11 +260,97 @@ def test_vAriEL_AE_cdc_model():
 
 
 
+
+class testActiveGaussianNoise(GaussianNoise):
+    @interfaces.legacy_gaussiannoise_support
+    def __init__(self, stddev, **kwargs):
+        super(GaussianNoise, self).__init__(**kwargs)
+        self.supports_masking = True
+        self.stddev = stddev
+
+    def call(self, inputs, training=None):
+        def noised():
+            return inputs + K.random_normal(shape=K.shape(inputs),
+                                            mean=0.,
+                                            stddev=self.stddev)
+        return noised
+
+    def get_config(self):
+        config = {'stddev': self.stddev}
+        base_config = super(GaussianNoise, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+        
+def test_stuff_inside_AE():
+    
+    
+    questions, _ = random_sequences_and_points()
+    
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+
+    #continuous_latent_space = Dense(latDim)(continuous_latent_space)
+    continuous_latent_space = GaussianNoise(stddev=.5)(continuous_latent_space) # WORKS!
+    #continuous_latent_space = testActiveGaussianNoise(stddev=5)(continuous_latent_space) # WORKS!
+
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
+    model.summary()
+    
+    for layer in model.predict(questions):
+        print(layer)
+        print('\n')
+        
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(questions, questions, epochs=2)    
+
+
+
+    
+
 if __name__ == '__main__':
     #test_vAriEL_Decoder_model()
     print('=========================================================================================')
     #test_vAriEL_Encoder_model()
     print('=========================================================================================')    
-    test_vAriEL_AE_dcd_model()
+    #test_vAriEL_AE_dcd_model()
     print('=========================================================================================')    
     #test_vAriEL_AE_cdc_model()
+    print('=========================================================================================')    
+    test_stuff_inside_AE()
