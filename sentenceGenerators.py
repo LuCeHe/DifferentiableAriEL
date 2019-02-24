@@ -185,14 +185,6 @@ def test_generator_class():
     print('')
     
     
-def test_problems():
-    
-    
-    indicess =  [[ 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
-                  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,
-                  27.,  2., 26., 25., 31., 66., 84., 74., 41., 57., 94., 94.]]
-    
-    
 if __name__ == '__main__':
     #test_generator(grammar)
     #test_sentencesToCharacters()    

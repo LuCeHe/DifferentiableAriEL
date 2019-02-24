@@ -24,7 +24,8 @@ import tensorflow as tf
 
 vocabSize = 5
 max_senLen = 6
-batchSize = 3
+batchSize = 128   # gauss with 100 works,   
+                  # 128 works, probably the prob is in the interaction with the Vocabulary!
 latDim = 5
 embDim = 2
                                 
@@ -322,10 +323,10 @@ def test_stuff_inside_AE():
     
     # GaussianNoise(stddev=.02) WORKS!! (it fits) and loss \= 0!! but stddev>=.15 
     # not always :( find reason or if it keeps happening if you restart the kernel
-    #continuous_latent_space = GaussianNoise(stddev=.02)(continuous_latent_space) 
+    continuous_latent_space = GaussianNoise(stddev=.2)(continuous_latent_space) 
     
     # testActiveGaussianNoise(stddev=.02) WORKS!! but not enough at test time :()
-    continuous_latent_space = TestActiveGaussianNoise(stddev=.15)(continuous_latent_space)
+    #continuous_latent_space = TestActiveGaussianNoise(stddev=.2)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)

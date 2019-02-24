@@ -43,8 +43,10 @@ grammar = CFG.fromstring("""
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 4 #24
 batchSize = 128
-latDim = 7
-embDim = 5
+# FIXME:
+# latDim = 7, embDim = 5 seems to explode with gaussian noise
+latDim = 5
+embDim = 2
 epochs = 1
 epochs_in = 10
 latentTestRate = int(epochs_in/10)
@@ -78,7 +80,7 @@ def main():
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
-    continuous_latent_space = GaussianNoise(stddev=0.2)(continuous_latent_space)
+    #continuous_latent_space = GaussianNoise(stddev=0.2)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -86,7 +88,7 @@ def main():
     
     
     clippedAdam = optimizers.Adam(lr=.02, clipnorm=1.)
-    ae_model.compile(loss='mean_squared_error', optimizer=clippedAdam)
+    ae_model.compile(loss='mean_absolute_error', optimizer=clippedAdam)
     print('')
     ae_model.summary()
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
