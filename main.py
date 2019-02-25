@@ -48,7 +48,7 @@ batchSize = 128
 latDim = 5
 embDim = 2
 epochs = 1
-epochs_in = 10
+epochs_in = 100
 latentTestRate = int(epochs_in/10)
 
 
@@ -94,7 +94,7 @@ def main():
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
-    callbacks = [] # [tensorboard]
+    callbacks = [tensorboard]  #  [] # 
     
     # reuse decoder to define a model to test generation capacity
     input_point = Input(shape=(latDim,), name='continuous_input')
