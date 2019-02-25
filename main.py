@@ -17,9 +17,8 @@ from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed
                          GaussianNoise
 from keras import optimizers
 from keras.callbacks import TensorBoard
-from utils import checkDuringTraining, plot_softmax_evolution, make_directories
-
-
+from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
+                  TestActiveGaussianNoise
 
 # grammar cannot have recursion!
 grammar = CFG.fromstring("""
@@ -41,16 +40,18 @@ grammar = CFG.fromstring("""
 
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 4 #24
-batchSize = 128
+max_senLen = 6 #24
+batchSize = 64
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
 latDim = 5
 embDim = 2
-epochs = 1
-epochs_in = 100
-latentTestRate = int(epochs_in/10)
 
+
+
+epochs = 1
+epochs_in = 1000
+latentTestRate = int(epochs_in/10)
 
 
 
@@ -80,14 +81,15 @@ def main():
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
-    #continuous_latent_space = GaussianNoise(stddev=0.2)(continuous_latent_space)
+    # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
+    continuous_latent_space = TestActiveGaussianNoise(stddev=.02)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     ae_model = Model(inputs=input_question, outputs=discrete_output[0])   # + [continuous_latent_space])        
     
     
-    clippedAdam = optimizers.Adam(lr=.02, clipnorm=1.)
+    clippedAdam = optimizers.Adam(lr=.2, clipnorm=1.)
     ae_model.compile(loss='mean_absolute_error', optimizer=clippedAdam)
     print('')
     ae_model.summary()
@@ -115,6 +117,8 @@ def main():
               
               """)
         indices_sentences = next(generator)
+        predictions = ae_model.predict(indices_sentences)
+        print(predictions)
         ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
                      callbacks=callbacks, validation_data = (valIndices, valIndices))    
         
@@ -182,6 +186,7 @@ def main_simple():
         indices_sentences = next(generator) 
         ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
                      validation_data = (valIndices, valIndices), callbacks=[tensorboard], verbose=1)   
+
 
 
     

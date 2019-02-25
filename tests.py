@@ -13,24 +13,21 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
                          RepeatVector, Activation, GaussianNoise
-import keras.backend as K
-from keras.legacy import interfaces
-from keras.engine.base_layer import Layer
 import tensorflow as tf
+from utils import TestActiveGaussianNoise
 
 
 # TODO: move to unittest type of test
 
 
-vocabSize = 5
+vocabSize = 6
 max_senLen = 6
-batchSize = 128   # gauss with 100 works,   
-                  # 128 works, probably the prob is in the interaction with the Vocabulary!
+batchSize = 4
 latDim = 5
 embDim = 2
                                 
                                 
-def random_sequences_and_points(repeated=False):
+def random_sequences_and_points(repeated=False, vocabSize=vocabSize):
     
     if not repeated:
         questions = []
@@ -273,29 +270,6 @@ def test_vAriEL_AE_cdc_model():
 
 
 
-class TestActiveGaussianNoise(Layer):
-    @interfaces.legacy_gaussiannoise_support
-    def __init__(self, stddev, **kwargs):
-        super(TestActiveGaussianNoise, self).__init__(**kwargs)
-        self.supports_masking = True
-        self.stddev = stddev
-
-    def call(self, inputs, training=None):
-        def noised():
-            return inputs + K.random_normal(shape=K.shape(inputs),
-                                            mean=0.,
-                                            stddev=self.stddev)
-        return K.in_train_phase(noised, noised, training=training)
-
-    def get_config(self):
-        config = {'stddev': self.stddev}
-        base_config = super(TestActiveGaussianNoise, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-        
-    
     
 def test_stuff_inside_AE():
     
@@ -323,10 +297,10 @@ def test_stuff_inside_AE():
     
     # GaussianNoise(stddev=.02) WORKS!! (it fits) and loss \= 0!! but stddev>=.15 
     # not always :( find reason or if it keeps happening if you restart the kernel
-    continuous_latent_space = GaussianNoise(stddev=.2)(continuous_latent_space) 
+    #continuous_latent_space = GaussianNoise(stddev=.2)(continuous_latent_space) 
     
     # testActiveGaussianNoise(stddev=.02) WORKS!! but not enough at test time :()
-    #continuous_latent_space = TestActiveGaussianNoise(stddev=.2)(continuous_latent_space)
+    continuous_latent_space = TestActiveGaussianNoise(stddev=.2)(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -364,6 +338,94 @@ def test_stuff_inside_AE():
 
     
 
+
+
+def test_noise_vs_vocabSize(vocabSize=4, std=.2):
+    
+    
+    questions, _ = random_sequences_and_points(False, vocabSize)
+    
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+
+    # testActiveGaussianNoise(stddev=.02) WORKS!! but not enough at test time :()
+    continuous_latent_space = TestActiveGaussianNoise(stddev=std)(continuous_latent_space)
+
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
+    model.summary()
+    
+    for layer in model.predict(questions):
+        print(layer)
+        print('\n')
+        
+
+
+def test_Decoder_forTooMuchNoise():
+    
+    print("""
+          Test Decoding
+          
+          """)
+
+    questions, points = random_sequences_and_points()
+    points = 2*np.random.rand(batchSize, latDim)
+    
+    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 output_type='tokens')
+    
+    prediction = model.predict(points)
+    
+    # The batch size of predicted tokens should contain different sequences of tokens
+    assert np.any(prediction[0] != prediction[1])
+    
+
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(points, questions)    
+
+   
+    
+    
+    
+
+
+
 if __name__ == '__main__':
     #test_vAriEL_Decoder_model()
     print('=========================================================================================')
@@ -373,6 +435,23 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_vAriEL_AE_cdc_model()
     print('=========================================================================================')    
-    test_stuff_inside_AE()
+    #test_stuff_inside_AE()
+    print('=========================================================================================')    
+    # when the prediction shows nans, is when it doesnt work
+    # with noise .2
+    # vocab     works:   
+    #        no works:   4, 5, 6, 7, 8, 9, 
+    # with noise .1
+    # vocab     works:   
+    #        no works:   
+    # with noise .05
+    # vocab     works:   3, 5, 8, 9, 10, 
+    #        no works:   4, 6, 7, 
+    # with noise .02
+    # vocab     works:   3, 4, 5, 6
+    #        no works:   
+    #test_noise_vs_vocabSize(6, .02)
+    print('=========================================================================================')    
+    test_Decoder_forTooMuchNoise()
     
-    
+
