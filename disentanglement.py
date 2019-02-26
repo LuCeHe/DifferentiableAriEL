@@ -120,6 +120,14 @@ def main():
         print(measure)
         axarr[0,i].set_title(round(measure,2), fontsize=12)
         
+    rows = ['True\nLabels', '{}\nLabels'.format(str(algorithm.__name__))]
+    
+    for ax, row in zip(axarr[:,0], rows):
+        ax.set_ylabel(row, rotation=0, size='large')
+
+    f.savefig("disentangled.pdf", bbox_inches='tight')
+    
+    
     
     
 if __name__ == '__main__':
