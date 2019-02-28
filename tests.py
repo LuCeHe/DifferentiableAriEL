@@ -22,7 +22,7 @@ from utils import TestActiveGaussianNoise
 
 vocabSize = 6
 max_senLen = 6
-batchSize = 4
+batchSize = 1 #4
 latDim = 5
 embDim = 2
                                 
@@ -378,14 +378,24 @@ def test_noise_vs_vocabSize(vocabSize=4, std=.2):
 
 
 def test_Decoder_forTooMuchNoise():
+    """
+    it works thanks to value clipping at the entrance of the decoder, other
+    solutions might be interesting, like an interplay with layer normalization
+    or allowing the latent space to be [-1,1]
+    """
     
     print("""
           Test Decoding
           
           """)
 
-    questions, points = random_sequences_and_points()
-    points = 2*np.random.rand(batchSize, latDim)
+    #questions, points = random_sequences_and_points()
+    points = 20*np.random.rand(batchSize, latDim)
+    
+    
+    print('points')
+    print(points)
+    print('')
     
     # it used to be vocabSize + 1 for the keras padding + 1 for EOS
     model = vAriEL_Decoder_model(vocabSize = vocabSize, 
@@ -396,32 +406,7 @@ def test_Decoder_forTooMuchNoise():
     
     prediction = model.predict(points)
     
-    # The batch size of predicted tokens should contain different sequences of tokens
-    assert np.any(prediction[0] != prediction[1])
-    
-
-    print("""
-          Test Gradients
-          
-          """)
-    weights = model.trainable_weights # weight tensors
-    
-    grad = tf.gradients(xs=weights, ys=model.output)
-    for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
-        #assert g[0] != None
-    print("""
-          Test Fit
-          
-          """)
-    
-    model.compile(loss='mean_squared_error', optimizer='sgd')
-    model.fit(points, questions)    
-
-   
-    
-    
+    print(prediction)    
     
 
 

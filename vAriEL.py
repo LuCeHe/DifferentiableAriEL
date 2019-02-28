@@ -10,7 +10,7 @@ vAriEL for New Word Acquisition
      generator into a numbers generator
 1. [DONE] character level
 2. [DONE] lose complete connection to grammar
-3. every node the same number of tokens
+3. [DONE] every node the same number of tokens
 4. start with a number of tokens larger than necessary, and 
      - assign tokens to characters them upon visit, first come first served
 5. probably I need a <START> and an <END> tokens
@@ -174,6 +174,23 @@ class probsToPoint(object):
         return pointLatentDim
 
 
+def vAriEL_Decoder_model(vocabSize = 101, 
+                         embDim = 2, 
+                         latDim = 4, 
+                         max_senLen = 10, 
+                         rnn=None, 
+                         embedding=None, 
+                         output_type='both'):  
+    
+    layer = vAriEL_Decoder_Layer(vocabSize = vocabSize, embDim = embDim, 
+                                 latDim = latDim, max_senLen = max_senLen, 
+                                 rnn=rnn, embedding=embedding, output_type=output_type)
+    input_point = Input(shape=(latDim,), name='input_point')
+    output = layer(input_point)    
+    model = Model(inputs=input_point, outputs=output)
+    return model
+
+
 
 class vAriEL_Decoder_Layer(object):
     def __init__(self, 
@@ -205,7 +222,6 @@ class vAriEL_Decoder_Layer(object):
         
     
     def __call__(self, input_point):
-        #input_point = Input(shape=(latDim,), name='input_point')
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
@@ -221,40 +237,27 @@ class vAriEL_Decoder_Layer(object):
                               embedding=self.embedding, 
                               output_type=self.output_type)([first_softmax, input_point])
     
-        #model = Model(inputs=input_point, outputs=probs)
         return output
 
 
 
 
-def vAriEL_Decoder_model(vocabSize = 101, 
-                         embDim = 2, 
-                         latDim = 4, 
-                         max_senLen = 10, 
-                         rnn=None, 
-                         embedding=None, 
-                         output_type='both'):  
-    
-    layer = vAriEL_Decoder_Layer(vocabSize = vocabSize, embDim = embDim, 
-                                 latDim = latDim, max_senLen = max_senLen, 
-                                 rnn=rnn, embedding=embedding, output_type=output_type)
-    input_point = Input(shape=(latDim,), name='input_point')
-    output = layer(input_point)    
-    model = Model(inputs=input_point, outputs=output)
-    return model
-
 
 
 
 class pointToProbs(object):
-    def __init__(self, vocabSize=2, latDim=3, embDim=2, max_senLen=10, rnn=None, embedding=None, output_type = 'both'):
+    def __init__(self, 
+                 vocabSize=2, 
+                 latDim=3, 
+                 embDim=2, 
+                 max_senLen=10, 
+                 rnn=None, 
+                 embedding=None, 
+                 output_type = 'both'):
         """        
         inputs:
             output_type: 'tokens', 'softmaxes' or 'both'
         """
-        
-        
-        #super(vAriEL_Encoder, self).__init__()
         self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
                              embDim=embDim, max_senLen=max_senLen, 
                              rnn=rnn, embedding=embedding, output_type=output_type)
@@ -270,7 +273,9 @@ class pointToProbs(object):
             
             # by clipping the values, it can accept inputs that go beyong the 
             # unit hypercube
-            unfolding_point = K.clip(input_point,0,1)
+            eps = .5e-6
+            clipped_point = K.clip(input_point,0.+eps,1.-eps)
+            unfolding_point = clipped_point
             
             final_softmaxes = one_softmax
             final_tokens = None
@@ -389,11 +394,6 @@ class pointToProbs(object):
 
 
 
-        
-        
-        
-def test_vAriEL_AE_cdc_model():
-    pass
     
 
 

@@ -17,7 +17,6 @@ from keras.preprocessing.sequence import pad_sequences
 grammar = CFG.fromstring("""
                          S -> NP VP | NP V
                          VP -> V NP
-                         PP -> P NP
                          NP -> Det N
                          Det -> 'a' | 'the'
                          N -> 'dog' | 'cat'

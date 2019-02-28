@@ -38,6 +38,27 @@ class TestActiveGaussianNoise(Layer):
         return input_shape
         
     
+class AdjustGaussianNoise(Layer):
+    @interfaces.legacy_gaussiannoise_support
+    def __init__(self, stddev, **kwargs):
+        super(TestActiveGaussianNoise, self).__init__(**kwargs)
+        self.supports_masking = True
+        self.stddev = stddev
+
+    def call(self, inputs, training=None):
+        def noised():
+            return inputs + K.random_normal(shape=K.shape(inputs),
+                                            mean=0.,
+                                            stddev=self.stddev)
+        return K.in_train_phase(noised, noised, training=training)
+
+    def get_config(self):
+        config = {'stddev': self.stddev}
+        base_config = super(TestActiveGaussianNoise, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
 
 
