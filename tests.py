@@ -421,7 +421,7 @@ def test_SelfAdjustingGaussianNoise():
     ones = np.ones((1,3))
     
     inputs = Input((3,))
-    output = SelfAdjustingGaussianNoise()(inputs)
+    output = SelfAdjustingGaussianNoise('scalar')(inputs)
     model = Model(inputs, output)
     model.compile(loss='mean_squared_error', optimizer='sgd')
     model.summary()

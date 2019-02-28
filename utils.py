@@ -41,10 +41,14 @@ class TestActiveGaussianNoise(Layer):
     
 class SelfAdjustingGaussianNoise(Layer):
     @interfaces.legacy_gaussiannoise_support
-    def __init__(self, scalar=True, **kwargs):
+    def __init__(self, tensor_type='scalar', **kwargs):
         super(SelfAdjustingGaussianNoise, self).__init__(**kwargs)
         self.supports_masking = True
-        self.scalar = scalar
+        
+        if not tensor_type in ['scalar', 'tensor']: 
+            raise ValueError("""tensor_type can be either 'scalar' or 'tensor'!""")
+            
+        self.tensor_type = tensor_type
         
         
         self.stddev_initializer = keras.initializers.get('ones')
@@ -56,21 +60,20 @@ class SelfAdjustingGaussianNoise(Layer):
     def build(self, input_shape):
         self.input_spec = InputSpec(shape=input_shape)
         shape = input_shape[-1:]
-        if not self.scalar:
+        if self.tensor_type == 'scalar':
+            stddev_value = tf.Variable([1.], dtype=tf.float32)
+            self.stddev = tf.ones(shape,
+                                  dtype=tf.float32)
+            self.stddev *= stddev_value
+            self.trainable_weights = [stddev_value]
+            
+        else:
             self.stddev = self.add_weight(shape=shape,
                                          initializer=self.stddev_initializer,
                                          regularizer=self.stddev_regularizer,
                                          constraint=self.stddev_constraint,
                                          name='gamma',
                                          )
-        else:
-            
-            stddev_value = tf.Variable([1.], dtype=tf.float32)
-            self.stddev = tf.ones(shape,
-                                  dtype=tf.float32)
-            self.stddev *= stddev_value
-            self.trainable_weights = [stddev_value]
-
         super(SelfAdjustingGaussianNoise, self).build(input_shape)
 
     def call(self, inputs, training=None):
