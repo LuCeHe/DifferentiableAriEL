@@ -18,7 +18,7 @@ from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed
 from keras import optimizers
 from keras.callbacks import TensorBoard
 from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
-                  TestActiveGaussianNoise
+                  TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 # grammar cannot have recursion!
 grammar = CFG.fromstring("""
@@ -82,7 +82,8 @@ def main():
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
     # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
-    continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
+    #continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
+    continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
