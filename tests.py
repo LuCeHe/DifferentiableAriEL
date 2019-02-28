@@ -14,7 +14,7 @@ from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
                          RepeatVector, Activation, GaussianNoise
 import tensorflow as tf
-from utils import TestActiveGaussianNoise
+from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 
 # TODO: move to unittest type of test
@@ -362,7 +362,8 @@ def test_noise_vs_vocabSize(vocabSize=4, std=.2):
     continuous_latent_space = DAriA_dcd.encode(input_question)
 
     # testActiveGaussianNoise(stddev=.02) WORKS!! but not enough at test time :()
-    continuous_latent_space = TestActiveGaussianNoise(stddev=std)(continuous_latent_space)
+    #continuous_latent_space = TestActiveGaussianNoise(stddev=std)(continuous_latent_space)
+    continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -410,6 +411,27 @@ def test_Decoder_forTooMuchNoise():
     
 
 
+def test_SelfAdjustingGaussianNoise():
+    
+    print("""
+          Test Decoding
+          
+          """)
+
+    ones = np.ones((1,3))
+    
+    inputs = Input((3,))
+    output = SelfAdjustingGaussianNoise()(inputs)
+    model = Model(inputs, output)
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    
+    # it's learning to decrease its noise so it can map ones to ones
+    for _ in range(30):
+        model.fit(ones, ones, epochs=10)
+        prediction = model.predict(ones)
+        print(prediction)    
+    
+
 
 if __name__ == '__main__':
     #test_vAriEL_Decoder_model()
@@ -422,21 +444,8 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_stuff_inside_AE()
     print('=========================================================================================')    
-    # when the prediction shows nans, is when it doesnt work
-    # with noise .2
-    # vocab     works:   
-    #        no works:   4, 5, 6, 7, 8, 9, 
-    # with noise .1
-    # vocab     works:   
-    #        no works:   
-    # with noise .05
-    # vocab     works:   3, 5, 8, 9, 10, 
-    #        no works:   4, 6, 7, 
-    # with noise .02
-    # vocab     works:   3, 4, 5, 6
-    #        no works:   
-    #test_noise_vs_vocabSize(6, .02)
+    #test_Decoder_forTooMuchNoise()
     print('=========================================================================================')    
-    test_Decoder_forTooMuchNoise()
+    test_SelfAdjustingGaussianNoise()
     
 

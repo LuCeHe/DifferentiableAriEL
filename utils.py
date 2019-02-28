@@ -9,10 +9,11 @@ import os
 import numpy as np
 from time import strftime, localtime
 
+import keras
 import keras.backend as K
 from keras.legacy import interfaces
 from keras.engine.base_layer import Layer
-
+from keras.engine import InputSpec
 
 
 class TestActiveGaussianNoise(Layer):
@@ -38,23 +39,43 @@ class TestActiveGaussianNoise(Layer):
         return input_shape
         
     
-class AdjustGaussianNoise(Layer):
+class SelfAdjustingGaussianNoise(Layer):
     @interfaces.legacy_gaussiannoise_support
-    def __init__(self, stddev, **kwargs):
-        super(TestActiveGaussianNoise, self).__init__(**kwargs)
+    def __init__(self, scalar=True, **kwargs):
+        super(SelfAdjustingGaussianNoise, self).__init__(**kwargs)
         self.supports_masking = True
-        self.stddev = stddev
+        
+        
+        self.stddev_initializer = keras.initializers.get('ones')
+        self.stddev_regularizer = keras.regularizers.get(None)
+        self.stddev_constraint = keras.constraints.get(None)
+
+
+        
+    def build(self, input_shape):
+        self.input_spec = InputSpec(shape=input_shape)
+        shape = input_shape[-1:]
+        #if not scalar
+        self.stddev = self.add_weight(shape=shape,
+                                     initializer=self.stddev_initializer,
+                                     regularizer=self.stddev_regularizer,
+                                     constraint=self.stddev_constraint,
+                                     name='gamma',
+                                     )
+        #else:
+                
+        super(SelfAdjustingGaussianNoise, self).build(input_shape)
 
     def call(self, inputs, training=None):
         def noised():
-            return inputs + K.random_normal(shape=K.shape(inputs),
-                                            mean=0.,
-                                            stddev=self.stddev)
+            return inputs + self.stddev*K.random_normal(shape=K.shape(inputs),
+                                                        mean=0.,
+                                                        stddev=1.)
         return K.in_train_phase(noised, noised, training=training)
 
     def get_config(self):
         config = {'stddev': self.stddev}
-        base_config = super(TestActiveGaussianNoise, self).get_config()
+        base_config = super(SelfAdjustingGaussianNoise, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):
