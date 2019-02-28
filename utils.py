@@ -14,7 +14,7 @@ import keras.backend as K
 from keras.legacy import interfaces
 from keras.engine.base_layer import Layer
 from keras.engine import InputSpec
-
+import tensorflow as tf
 
 class TestActiveGaussianNoise(Layer):
     @interfaces.legacy_gaussiannoise_support
@@ -44,6 +44,7 @@ class SelfAdjustingGaussianNoise(Layer):
     def __init__(self, scalar=True, **kwargs):
         super(SelfAdjustingGaussianNoise, self).__init__(**kwargs)
         self.supports_masking = True
+        self.scalar = scalar
         
         
         self.stddev_initializer = keras.initializers.get('ones')
@@ -55,15 +56,21 @@ class SelfAdjustingGaussianNoise(Layer):
     def build(self, input_shape):
         self.input_spec = InputSpec(shape=input_shape)
         shape = input_shape[-1:]
-        #if not scalar
-        self.stddev = self.add_weight(shape=shape,
-                                     initializer=self.stddev_initializer,
-                                     regularizer=self.stddev_regularizer,
-                                     constraint=self.stddev_constraint,
-                                     name='gamma',
-                                     )
-        #else:
-                
+        if not self.scalar:
+            self.stddev = self.add_weight(shape=shape,
+                                         initializer=self.stddev_initializer,
+                                         regularizer=self.stddev_regularizer,
+                                         constraint=self.stddev_constraint,
+                                         name='gamma',
+                                         )
+        else:
+            
+            stddev_value = tf.Variable([1.], dtype=tf.float32)
+            self.stddev = tf.ones(shape,
+                                  dtype=tf.float32)
+            self.stddev *= stddev_value
+            self.trainable_weights = [stddev_value]
+
         super(SelfAdjustingGaussianNoise, self).build(input_shape)
 
     def call(self, inputs, training=None):

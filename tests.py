@@ -414,7 +414,7 @@ def test_Decoder_forTooMuchNoise():
 def test_SelfAdjustingGaussianNoise():
     
     print("""
-          Test Decoding
+          Test SelfAdjustingGaussianNoise
           
           """)
 
@@ -424,10 +424,11 @@ def test_SelfAdjustingGaussianNoise():
     output = SelfAdjustingGaussianNoise()(inputs)
     model = Model(inputs, output)
     model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.summary()
     
     # it's learning to decrease its noise so it can map ones to ones
-    for _ in range(30):
-        model.fit(ones, ones, epochs=10)
+    for _ in range(10):
+        model.fit(ones, ones, epochs=100, verbose=0)
         prediction = model.predict(ones)
         print(prediction)    
     
