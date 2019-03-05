@@ -20,7 +20,7 @@ from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 # TODO: move to unittest type of test
 
 
-vocabSize = 6
+vocabSize = 3
 max_senLen = 6
 batchSize = 1 #4
 latDim = 5
@@ -434,6 +434,39 @@ def test_SelfAdjustingGaussianNoise():
         print(prediction)    
     
 
+def test_DAriA_Decoder_cross_entropy():
+    
+    # CHECKED
+    # 1. random numpy arrays pass through the encoder succesfully
+    # 2. gradients /= None
+    # 3. fit method works
+    
+    print("""
+          Test Decoding
+          
+          """)
+
+    questions, points = random_sequences_and_points()
+    
+    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 output_type='softmaxes')
+    
+    prediction = model.predict(points)
+    print('')
+    print('prediction size:  ', prediction.shape)
+    print('')
+    print('')
+    print('prediction:       ', prediction)
+    print('')
+    
+    model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    model.fit(points, questions)    
+
+   
 
 if __name__ == '__main__':
     #test_vAriEL_Decoder_model()
@@ -448,6 +481,8 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_Decoder_forTooMuchNoise()
     print('=========================================================================================')    
-    test_SelfAdjustingGaussianNoise()
+    #test_SelfAdjustingGaussianNoise()
+    print('=========================================================================================')    
+    test_DAriA_Decoder_cross_entropy()
     
 
