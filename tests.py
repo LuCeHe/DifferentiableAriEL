@@ -13,6 +13,7 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
                          RepeatVector, Activation, GaussianNoise
+from keras.utils import to_categorical
 import tensorflow as tf
 from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
@@ -23,7 +24,7 @@ from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 vocabSize = 3
 max_senLen = 6
 batchSize = 1 #4
-latDim = 5
+latDim = 4
 embDim = 2
                                 
                                 
@@ -448,12 +449,39 @@ def test_DAriA_Decoder_cross_entropy():
 
     questions, points = random_sequences_and_points()
     
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
-                                 embDim = embDim, 
-                                 latDim = latDim, 
-                                 max_senLen = max_senLen, 
-                                 output_type='softmaxes')
+    
+    categorical_questions = to_categorical(questions, num_classes = vocabSize)
+    print('')
+    print(categorical_questions)
+    
+    # 1. it works
+    #model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+    #                             embDim = embDim, 
+    #                             latDim = latDim, 
+    #                             max_senLen = max_senLen, 
+    #                             output_type='softmaxes')
+
+    # 2. does this work?    
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'softmaxes')
+
+
+    input_point = Input(shape=(latDim,), name='input_point')
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(input_point)
+    
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_point, outputs=discrete_output)   # + [continuous_latent_space])    
+    
+    
+    
+    model.summary()
+
+
+
     
     prediction = model.predict(points)
     print('')
@@ -462,11 +490,187 @@ def test_DAriA_Decoder_cross_entropy():
     print('')
     print('prediction:       ', prediction)
     print('')
+
+
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
+
+    print("""
+          Test Fit
+          
+          """)
     
     model.compile(loss='categorical_crossentropy', optimizer='sgd')
-    model.fit(points, questions)    
+    model.fit(points, categorical_questions)    
 
+
+
+def test_vAriEL_dcd_CCE():
+    
+    questions, _ = random_sequences_and_points()
+    
+    categorical_questions = to_categorical(questions, num_classes = vocabSize)
+    print('')
+    print('categorical questions')
+    print('')
+    print(categorical_questions)
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'softmaxes')
+
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
+    
+    for layer in model.predict(questions):
+        print(layer)
+        print('\n')
+        
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    model.fit(questions, categorical_questions)    
+
+
+
+
+
+
+
+def test_rnn_CCE():
+    
+    questions, _ = random_sequences_and_points()
+    
+    categorical_questions = to_categorical(questions, num_classes = vocabSize)
+    print('')
+    print('categorical questions')
+    print('')
+    print(categorical_questions)
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    embedded = Embedding(vocabSize, embDim)(input_question)
+    rnn_output = LSTM(vocabSize, return_sequences=True, activation='softmax')(embedded)    
+    model = Model(inputs=input_question, outputs=rnn_output) 
+    
+    for layer in model.predict(questions):
+        print(layer)
+        print('\n')
+        
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    model.fit(questions, categorical_questions)    
+
+    
+    
+def test_dcd_softmax_gradient():
+    
+    questions, _ = random_sequences_and_points()
+    
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    model = Model(inputs=input_question, outputs=discrete_output) 
+        
+    
    
+def test_DAriA_Decoder_wasserstein():
+    """
+    https://arxiv.org/pdf/1701.07875.pdf
+    p4
+    """
+    pass
+
+
+
+def test_new_Decoder():
+    
+
+    questions, points = random_sequences_and_points()
+    
+    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 output_type='tokens')
+    
+    prediction = model.predict(points)
+    
+    for layer in prediction:
+        print(layer)
+
+
+
 
 if __name__ == '__main__':
     #test_vAriEL_Decoder_model()
@@ -483,6 +687,10 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
     print('=========================================================================================')    
-    test_DAriA_Decoder_cross_entropy()
-    
-
+    #test_DAriA_Decoder_cross_entropy()
+    print('=========================================================================================')    
+    #test_vAriEL_dcd_CCE()
+    #test_dcd_softmax_gradient()
+    #test_rnn_CCE()
+    test_new_Decoder()
+4

@@ -11,6 +11,7 @@ from nlp import Vocabulary, NltkGrammarSampler
 from nltk.parse.generate import generate
 import string
 from keras.preprocessing.sequence import pad_sequences
+from keras.utils import to_categorical
 
 
 # grammar cannot have recursion!
@@ -90,11 +91,12 @@ def _charactersNumsGenerator(grammar, batch_size = 5):
     
     
 class c2n_generator(object):
-    def __init__(self, grammar, batch_size = 5, maxlen=None):
+    def __init__(self, grammar, batch_size = 5, maxlen=None, categorical=False):
         
         self.grammar = grammar
         self.batch_size = batch_size
         self.maxlen = maxlen
+        self.categorical = categorical
         
         tempVocabulary = Vocabulary.fromGrammar(grammar)
         tokens = tempVocabulary.tokens[1:]
@@ -114,14 +116,15 @@ class c2n_generator(object):
     def generator(self, offset=0):
         while True:
             sentences = [[''.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
-            #print('')
-            #print(sentences)
-            #print('')
             sentencesCharacters = sentencesToCharacters(sentences)
             # offset=1 to take into account padding
             sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens, offset=offset) for listOfTokens in sentencesCharacters]
-            padded_indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
-            yield padded_indices
+            indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
+            
+            if self.categorical:
+                indices = to_categorical(indices, num_classes = self.vocabSize)
+                
+            yield indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
@@ -166,23 +169,28 @@ def test_sentencesToCharacters():
     
 
 def test_generator_class():
-    
-    generator_class = c2n_generator(grammar, maxlen=20)
+    categorical = False
+    generator_class = c2n_generator(grammar, maxlen=20, categorical=categorical)
     generator = generator_class.generator()
     
     print(generator_class.vocabSize)
     
     indicess = next(generator)
-    sentences = generator_class.indicesToSentences(indicess)
+    # if categorical
+    #if categorical: argmax etc...
+    sentences = indicess
+    #sentences = generator_class.indicesToSentences(indicess)
     
     print('')
     for indices, sentence in zip(indicess, sentences): 
         print(indices)
-        print(sentence)
+        #print(sentence)
         print('')
     print('')
     print('')
-    
+    print(len(indicess.shape))
+    #(5, 20, 13) if categorical
+    #(5, 20)
     
 if __name__ == '__main__':
     #test_generator(grammar)

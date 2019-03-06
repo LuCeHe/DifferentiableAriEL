@@ -56,7 +56,7 @@ latentTestRate = int(epochs_in/10)
 
 
     
-def main():
+def main_MSE():
 
     # create experiment folder to save the results
     experiment_path = make_directories()
@@ -87,7 +87,7 @@ def main():
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
-    ae_model = Model(inputs=input_question, outputs=discrete_output[0])   # + [continuous_latent_space])        
+    ae_model = Model(inputs=input_question, outputs=discrete_output[0])      
     
     
     clippedAdam = optimizers.Adam(lr=.2, clipnorm=1.)
@@ -145,13 +145,13 @@ def main():
 
 
     
-def main_simple():
+def main_CCE():
 
     # create experiment folder to save the results
     experiment_path = make_directories()
     
-    # dataset to be learned
-    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen)
+    # dataset to be learned<
+    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=True)
     generator = generator_class.generator()
 
     vocabSize = generator_class.vocabSize    
@@ -161,36 +161,80 @@ def main_simple():
           
           """)        
 
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'both')
 
-    input_question = Input(shape=(max_senLen,), name='discrete_sequence', dtype='int32')
-    embed = Embedding(vocabSize, embDim)(input_question)
-    rnn_output = LSTM(vocabSize, return_sequences=True)(embed)
-    output = TimeDistributed(Dense(1, activation='sigmoid'))(rnn_output)
-    output = Reshape((max_senLen,))(output)
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA_dcd.encode(input_question)
+    # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
+    #continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
+    continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
+
+    # in between some neural operations can be defined
+    discrete_output = DAriA_dcd.decode(continuous_latent_space)
+    ae_model = Model(inputs=input_question, outputs=discrete_output[1])      
     
-    ae_model = Model(inputs=input_question, outputs=output)   # + [continuous_latent_space])        
     
-    
-    clippedAdam = optimizers.Adam(lr=2., clipnorm=1.)
-    ae_model.compile(loss='binary_crossentropy', optimizer=clippedAdam)
+    clippedAdam = optimizers.Adam(lr=.2, clipnorm=1.)
+    ae_model.compile(loss='categorical_crossentropy', optimizer=clippedAdam)
     print('')
     ae_model.summary()
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
-                              write_graph=False, write_images=False, write_grads=True)
+                              write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
+    callbacks = [tensorboard]  #  [] # 
+    
+    # reuse decoder to define a model to test generation capacity
+    input_point = Input(shape=(latDim,), name='continuous_input')
+    discrete_output = DAriA_dcd.decode(input_point)
+    decoder_model = Model(inputs=input_point, outputs=discrete_output)
+    
+    first_softmax_evolution = []
+    second_softmax_evolution = []
+    third_softmax_evolution = []
+    
     
     valIndices = next(generator)
-    print(valIndices.shape)
     for epoch in range(epochs):
         print('epoch:    ', epoch)
         
-        indices_sentences = next(generator) 
+        print("""
+              fit ae
+              
+              """)
+        indices_sentences = next(generator)
+        predictions = ae_model.predict(indices_sentences)
+        print(predictions)
         ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
-                     validation_data = (valIndices, valIndices), callbacks=[tensorboard], verbose=1)   
+                     callbacks=callbacks, validation_data = (valIndices, valIndices))    
+        
+        # FIXME: noise in the latent rep
+        if epoch%latentTestRate == 0:
+            softmaxes = checkDuringTraining(generator_class, indices_sentences, ae_model, decoder_model, batchSize, latDim)
 
+            first_softmax_evolution.append(softmaxes[0][0])
+            second_softmax_evolution.append(softmaxes[0][1])
+            third_softmax_evolution.append(softmaxes[0][2])
+             
+            
+    print(first_softmax_evolution)
+    plot_softmax_evolution(first_softmax_evolution, experiment_path + 'first_softmax_evolution')
+    print(second_softmax_evolution)
+    plot_softmax_evolution(second_softmax_evolution, experiment_path + 'second_softmax_evolution')
+    print(third_softmax_evolution)
+    plot_softmax_evolution(third_softmax_evolution, experiment_path + 'third_softmax_evolution')
+    print('')
+    print(generator_class.vocabulary.indicesByTokens)
+    print('')
+    print(grammar)
 
 
     
+
     
 if __name__ == '__main__':
-    main()
+    main_CCE()

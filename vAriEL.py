@@ -245,7 +245,7 @@ class vAriEL_Decoder_Layer(object):
 
 
 
-class pointToProbs(object):
+class pointToProbs_old(object):
     def __init__(self, 
                  vocabSize=2, 
                  latDim=3, 
@@ -365,7 +365,19 @@ class pointToProbs(object):
                 curDim += 1
                 if curDim >= self.latDim:
                     curDim = 0
-                    
+            
+            print('')
+            grad = tf.gradients(xs=input_point, ys=embed)
+            print('grad (xs=input_point, ys=embed):                        ', grad)   # [None]
+            grad = tf.gradients(xs=input_point, ys=rnn_output)
+            print('grad (xs=input_point, ys=rnn_output):                   ', grad)   # [None]
+            grad = tf.gradients(xs=input_point, ys=one_softmax)
+            print('grad (xs=input_point, ys=one_softmax):                  ', grad)   # [None]
+            grad = tf.gradients(xs=input_point, ys=final_softmaxes)
+            print('grad (xs=input_point, ys=final_softmaxes):              ', grad)   # [None]
+            grad = tf.gradients(xs=input_point, ys=final_tokens)
+            print('grad (xs=input_point, ys=final_tokens):                 ', grad)   # [None]
+            print('')
             
             # remove last softmax, since the initial was given by the an initial
             # zero vector
@@ -390,6 +402,179 @@ class pointToProbs(object):
         else:
             raise ValueError('the output_type specified is not implemented!')
         
+        print('')
+        grad = tf.gradients(xs=input_point, ys=softmaxes)
+        print('grad (xs=input_point, ys=softmaxes):              ', grad)
+        print('')
+                
+        return output
+
+
+
+    
+
+
+class pointToProbs(object):
+    def __init__(self, 
+                 vocabSize=2, 
+                 latDim=3, 
+                 embDim=2, 
+                 max_senLen=10, 
+                 rnn=None, 
+                 embedding=None, 
+                 output_type = 'both'):
+        """        
+        inputs:
+            output_type: 'tokens', 'softmaxes' or 'both'
+        """
+        self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
+                             embDim=embDim, max_senLen=max_senLen, 
+                             rnn=rnn, embedding=embedding, output_type=output_type)
+    
+    def __call__(self, inputs):
+        first_softmax, input_point = inputs
+
+        
+        def upTheTree(inputs):
+            initial_softmax, input_point = inputs
+            
+            one_softmax = initial_softmax
+            
+            # by clipping the values, it can accept inputs that go beyong the 
+            # unit hypercube
+            eps = .5e-6
+            clipped_point = K.clip(input_point,0.+eps,1.-eps)
+            unfolding_point = clipped_point
+            
+            
+            # `tf.shape(input)` takes the dynamic shape of `input`.
+            final_softmaxes = tf.fill(tf.shape(initial_softmax) + [self.max_senLen], 0.5)
+            final_tokens = tf.fill([tf.shape(initial_softmax)[0]] + [self.max_senLen], 0)
+
+            
+            
+            # NOTE: since ending on the EOS token would fail for mini-batches, 
+            # the algorithm stops at a maxLen when the length of the sentence 
+            # is maxLen
+            
+            curDim = tf.constant(0)   
+            latDim = tf.constant(self.latDim) 
+            vocabSize = tf.constant(self.vocabSize)
+            i = tf.constant(0)
+            iters = tf.constant(self.max_senLen)
+            #iters = tf.constant(1)
+            
+            
+            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)    # throw away when functional!!!!
+            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*vocabSize, 1)    # throw away when functional!!!!
+                
+                
+            def cond(value_of_interest, unfolding_point, 
+                     one_softmax, 
+                     final_tokens, 
+                     final_softmaxes, 
+                     vocabSize,
+                     curDim, latDim,
+                     i, iters):
+                return tf.less(i, iters)
+            
+            def body(value_of_interest, unfolding_point, 
+                     one_softmax, 
+                     final_tokens, 
+                     final_softmaxes, 
+                     vocabSize,
+                     curDim, latDim,
+                     i, iters):
+                
+                #vocabSize = lambda: self.vocabSize
+                #latDim = lambda: self.latDim
+                rnn = lambda: self.rnn
+                embedding = lambda: self.embedding
+                
+                slice_1 = final_softmaxes[:, :, :i]
+                slice_2 = one_softmax
+                slice_3 = final_softmaxes[:, :, i+1:]
+                
+                print(K.int_shape(slice_1))
+                print(K.int_shape(slice_2))                
+                print(K.int_shape(slice_3))
+
+                #final_softmaxes[:, :, :, i] = one_softmax
+                final_softmaxes = tf.stack([final_softmaxes[:, :, :i], 
+                                            one_softmax, 
+                                            final_softmaxes[:, :, i+1:]])
+                
+                cumsum = K.cumsum(one_softmax, axis=2)
+                cumsum = K.squeeze(cumsum, axis=1)
+                cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
+                cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
+                
+                expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
+                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*vocabSize, 1)                
+                
+                # determine the token selected (2 steps: xor and token)
+                # differentiable xor (instead of tf.logical_xor)                
+                #c_minus_v = tf.subtract(cumsum, value_of_interest)
+
+                                
+                token = tf.fill([tf.shape(initial_softmax)[0]] + [1], 0)
+                final_tokens[:, i] = token
+
+                # determine the token selected (2 steps: xor and token)
+                # differentiable xor (instead of tf.logical_xor)                
+                #c_minus_v = tf.subtract(cumsum, value_of_interest)
+                
+                
+                # NOTE: at each iteration, change the dimension
+                curDim = tf.add(curDim, 1)
+                if tf.greater_equal(curDim, latDim) is not None:
+                    curDim = tf.constant(0)            
+                    
+                return [value_of_interest, unfolding_point, 
+                        one_softmax, 
+                        final_tokens, 
+                        final_softmaxes, 
+                        vocabSize,
+                        curDim, latDim,
+                        tf.add(i, 1), iters]
+            
+            
+            res = tf.while_loop(cond, body, [value_of_interest, unfolding_point, 
+                                             one_softmax,
+                                             final_tokens, 
+                                             final_softmaxes, 
+                                             vocabSize, latDim,
+                                             curDim, 
+                                             i, iters])
+            
+            # remove last softmax, since the initial was given by the an initial
+            # zero vector
+            #final_softmaxes = final_softmaxes[:,:-1,:]
+            # tokens to integers
+            #final_tokens = tf.cast(final_tokens, tf.int32)
+            
+            
+            return  [final_tokens, final_softmaxes, value_of_interest]
+
+        # FIXME: give two options: the model giving back the whol softmaxes
+        # sequence, or the model giving back the sequence of tokens 
+        #tokens, softmaxes = Lambda(upTheTree)([first_softmax, input_point])
+        output = Lambda(upTheTree)([first_softmax, input_point])
+        
+        #if self.output_type == 'tokens':
+        #    output = tokens
+        #elif self.output_type == 'softmaxes':
+        #    output = softmaxes
+        #elif self.output_type == 'both':
+        #    output = [tokens, softmaxes]
+        #else:
+        #    raise ValueError('the output_type specified is not implemented!')
+        
+        print('')
+        grad = tf.gradients(xs=input_point, ys=output)
+        print('grad (xs=input_point, ys=output):              ', grad)
+        print('')
+                
         return output
 
 
@@ -475,15 +660,28 @@ def print_base(a_class):
         
         
     
+def test_new_Decoder():
     
+    vocabSize = 3
+    max_senLen = 6
+    batchSize = 1 #4
+    latDim = 4
+    embDim = 2
+    points = np.random.rand(batchSize, latDim)
     
-if __name__ == '__main__':
-    pass
-    #test_vAriEL_Encoder_model()
-    #test_vAriEL_Decoder_model()
-    #test_vAriEL_AE_dcd_model()
-    #simple_tests()
+    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 output_type='tokens')
     
+    prediction = model.predict(points)
     
-    # FIXME: first token of the question, to make the first siftmax appear
-    # hide it inside the code, so the user can simply plug a sentence to the model
+    for layer in prediction:
+        print(layer)
+
+
+    
+if __name__ == '__main__':    
+    test_new_Decoder()
