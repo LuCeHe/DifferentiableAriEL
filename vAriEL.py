@@ -17,6 +17,7 @@ vAriEL for New Word Acquisition
 
 """
 
+
 import logging
 
 import tensorflow as tf
@@ -448,11 +449,13 @@ class pointToProbs(object):
             
             
             # `tf.shape(input)` takes the dynamic shape of `input`.
-            final_softmaxes = tf.fill(tf.shape(initial_softmax) + [self.max_senLen], 0.5)
+            final_softmaxes = tf.fill([tf.shape(initial_softmax)[0]] + [self.max_senLen, self.vocabSize], 0.5)
             final_tokens = tf.fill([tf.shape(initial_softmax)[0]] + [self.max_senLen], 0)
 
-            
-            
+            print('')
+            print('shapes before body')
+            print(tf.shape(initial_softmax)[1])
+            print(tf.shape(final_tokens))
             # NOTE: since ending on the EOS token would fail for mini-batches, 
             # the algorithm stops at a maxLen when the length of the sentence 
             # is maxLen
@@ -491,18 +494,23 @@ class pointToProbs(object):
                 rnn = lambda: self.rnn
                 embedding = lambda: self.embedding
                 
-                slice_1 = final_softmaxes[:, :, :i]
+                slice_1 = final_softmaxes[:, :1, :]
                 slice_2 = one_softmax
-                slice_3 = final_softmaxes[:, :, i+1:]
+                slice_3 = final_softmaxes[:, 1+1:, :]
                 
+                print('')
+                print('softmaxes')
+                print(K.int_shape(final_softmaxes))
                 print(K.int_shape(slice_1))
                 print(K.int_shape(slice_2))                
                 print(K.int_shape(slice_3))
 
                 #final_softmaxes[:, :, :, i] = one_softmax
-                final_softmaxes = tf.stack([final_softmaxes[:, :, :i], 
-                                            one_softmax, 
-                                            final_softmaxes[:, :, i+1:]])
+                final_softmaxes = tf.stack([slice_1, 
+                                            slice_2, 
+                                            slice_3], axis=1)
+                    
+                print(K.int_shape(final_softmaxes))
                 
                 cumsum = K.cumsum(one_softmax, axis=2)
                 cumsum = K.squeeze(cumsum, axis=1)
@@ -518,7 +526,22 @@ class pointToProbs(object):
 
                                 
                 token = tf.fill([tf.shape(initial_softmax)[0]] + [1], 0)
-                final_tokens[:, i] = token
+                
+                slice_1 = final_tokens[:, :i]
+                slice_2 = token
+                slice_3 = final_tokens[:, i+1:]
+
+                print('')
+                print('tokens')      
+                print(K.int_shape(final_tokens))
+                print(K.int_shape(slice_1))
+                print(K.int_shape(slice_2))                
+                print(K.int_shape(slice_3))
+
+                #final_softmaxes[:, :, :, i] = one_softmax
+                final_softmaxes = tf.stack([slice_1, 
+                                            slice_2, 
+                                            slice_3])
 
                 # determine the token selected (2 steps: xor and token)
                 # differentiable xor (instead of tf.logical_xor)                
@@ -662,6 +685,8 @@ def print_base(a_class):
     
 def test_new_Decoder():
     
+    import numpy as np
+    
     vocabSize = 3
     max_senLen = 6
     batchSize = 1 #4
@@ -682,6 +707,41 @@ def test_new_Decoder():
         print(layer)
 
 
+def append_tf():
+    
+    max_senLen = 4
+    final_softmaxes = tf.fill([3, max_senLen], -1)
+
+    i = tf.constant(0)
+    iters = tf.constant(max_senLen)
+            
+    def cond(final_softmaxes, 
+             i, iters):
+        return tf.less(i, iters)
+    
+    def body(final_softmaxes, 
+             i, iters):
+        
+        
+        return [final_softmaxes, 
+                tf.add(i, 1), iters]
+
+    res = tf.while_loop(cond, body, [final_softmaxes, 
+                                     i, iters])
+
+    #initialize the variable
+    #init_op = tf.initialize_all_variables()
+    
+    #run the graph
+    with tf.Session() as sess:
+        #sess.run(init_op) #execute init_op
+        #print the random values that we sample
+        print(sess.run(final_softmaxes))
     
 if __name__ == '__main__':    
-    test_new_Decoder()
+    #test_new_Decoder()
+    append_tf()
+    
+    
+    
+    
