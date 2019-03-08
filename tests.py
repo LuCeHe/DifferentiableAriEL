@@ -23,7 +23,7 @@ from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 vocabSize = 3
 max_senLen = 6
-batchSize = 1 #4
+batchSize = 3 #4
 latDim = 4
 embDim = 2
                                 
@@ -140,9 +140,9 @@ def test_vAriEL_Decoder_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        #print(w)
-        #print('        ', g)  
-        assert g[0] != None
+        print(w)
+        print('        ', g)  
+        #assert g[0] != None
     print("""
           Test Fit
           
@@ -572,75 +572,6 @@ def test_vAriEL_dcd_CCE():
 
 
 
-def test_rnn_CCE():
-    
-    questions, _ = random_sequences_and_points()
-    
-    categorical_questions = to_categorical(questions, num_classes = vocabSize)
-    print('')
-    print('categorical questions')
-    print('')
-    print(categorical_questions)
-    
-    print("""
-          Test Auto-Encoder DCD
-          
-          """)        
-
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    embedded = Embedding(vocabSize, embDim)(input_question)
-    rnn_output = LSTM(vocabSize, return_sequences=True, activation='softmax')(embedded)    
-    model = Model(inputs=input_question, outputs=rnn_output) 
-    
-    for layer in model.predict(questions):
-        print(layer)
-        print('\n')
-        
-    
-    print("""
-          Test Gradients
-          
-          """)
-    weights = model.trainable_weights # weight tensors
-    
-    grad = tf.gradients(xs=weights, ys=model.output)
-    for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
-        #assert g[0] != None
-
-    print("""
-          Test Fit
-          
-          """)
-    
-    model.compile(loss='categorical_crossentropy', optimizer='sgd')
-    model.fit(questions, categorical_questions)    
-
-    
-    
-def test_dcd_softmax_gradient():
-    
-    questions, _ = random_sequences_and_points()
-    
-    
-    print("""
-          Test Auto-Encoder DCD
-          
-          """)        
-
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'tokens')
-
-
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    continuous_latent_space = DAriA_dcd.encode(input_question)
-    discrete_output = DAriA_dcd.decode(continuous_latent_space)
-    model = Model(inputs=input_question, outputs=discrete_output) 
-        
     
    
 def test_DAriA_Decoder_wasserstein():
@@ -662,7 +593,7 @@ def test_new_Decoder():
                                  embDim = embDim, 
                                  latDim = latDim, 
                                  max_senLen = max_senLen, 
-                                 output_type='tokens')
+                                 output_type='softmaxes')
     
     prediction = model.predict(points)
     
@@ -687,10 +618,7 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
     print('=========================================================================================')    
-    #test_DAriA_Decoder_cross_entropy()
+    test_DAriA_Decoder_cross_entropy()
     print('=========================================================================================')    
     #test_vAriEL_dcd_CCE()
-    #test_dcd_softmax_gradient()
-    #test_rnn_CCE()
-    test_new_Decoder()
-4
+    #test_new_Decoder()

@@ -26,7 +26,7 @@ import keras.backend as K
 from keras.models import Model
 from keras.layers import concatenate, Input, Embedding, \
                          LSTM, Lambda, TimeDistributed, \
-                         Activation
+                         Activation, Concatenate
 
 
 from numpy.random import seed
@@ -415,7 +415,7 @@ class pointToProbs_old(object):
     
 
 
-class pointToProbs(object):
+class pointToProbs_tf(object):
     def __init__(self, 
                  vocabSize=2, 
                  latDim=3, 
@@ -621,6 +621,157 @@ class pointToProbs(object):
 
 
 
+
+class pointToProbs(object):
+    def __init__(self, 
+                 vocabSize=2, 
+                 latDim=3, 
+                 embDim=2, 
+                 max_senLen=10, 
+                 rnn=None, 
+                 embedding=None, 
+                 output_type = 'both'):
+        """        
+        inputs:
+            output_type: 'tokens', 'softmaxes' or 'both'
+        """
+        self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
+                             embDim=embDim, max_senLen=max_senLen, 
+                             rnn=rnn, embedding=embedding, output_type=output_type)
+    
+    def __call__(self, inputs):
+        initial_softmax, input_point = inputs
+        
+        one_softmax = initial_softmax
+        
+        # by clipping the values, it can accept inputs that go beyong the 
+        # unit hypercube
+        def clip_layer(inputs):            
+            eps = .5e-6
+            clipped_point = K.clip(inputs,0.+eps,1.-eps)
+            return clipped_point
+        
+        clipped_layer = Lambda(clip_layer)(input_point)
+        
+        unfolding_point = clipped_layer
+        
+        final_softmaxes = one_softmax
+        final_tokens = None
+        curDim = 0
+
+
+        def create_new_token(inputs):
+            
+            one_softmax, unfolding_point = inputs
+            
+            
+            cumsum = K.cumsum(one_softmax, axis=2)
+            cumsum = K.squeeze(cumsum, axis=1)
+            cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
+            cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
+            
+            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
+            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)                
+            
+            # determine the token selected (2 steps: xor and token)
+            # differentiable xor (instead of tf.logical_xor)                
+            c_minus_v = tf.subtract(cumsum, value_of_interest)
+            ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
+            signed_xor = c_minus_v*ce_minus_c
+            abs_sx = tf.abs(signed_xor)
+            almost_xor = tf.divide(signed_xor, abs_sx)
+            almost_xor = tf.add(almost_xor, -1)
+            xor = tf.abs(tf.divide(almost_xor, -2))
+            
+            # differentiable argmax (instead of tf.argmax)                
+            almost_token = tf.divide(c_minus_v, tf.abs(c_minus_v))
+            almost_token = tf.abs(tf.divide(tf.add(almost_token, -1),-2))
+            token = tf.reduce_sum(almost_token, axis=1)
+            token = tf.expand_dims(token, axis=1)
+            
+            # expand dimensions to be able to performa a proper matrix 
+            # multiplication after
+            xor = tf.expand_dims(xor, axis=1)
+            cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)                   
+            
+            # the c_iti value has to be subtracted to the point for the 
+            # next round on this dimension                
+            c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
+            c_iti_value = tf.squeeze(c_iti_value, axis=1)
+            one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(one_softmax)
+            one_hots = tf.squeeze(one_hots, axis=1)
+            
+            c_iti = c_iti_value*one_hots
+            unfolding_point = tf.subtract(unfolding_point, c_iti)
+            
+            # the p_iti value has to be divided to the point for the next
+            # round on this dimension                
+            one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(one_softmax)
+            one_hots = tf.squeeze(one_hots, axis=1)
+            p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
+            p_iti_value = K.squeeze(p_iti_value, axis=1)
+            p_iti_and_zeros = p_iti_value*one_hots
+            ones = Lambda(dynamic_ones, arguments={'d': self.latDim})(one_softmax)
+            ones = K.squeeze(ones, axis=1)
+            p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
+            p_iti = tf.subtract(p_iti_plus_ones, one_hots)
+            
+            unfolding_point = tf.divide(unfolding_point, p_iti)
+            
+            return [token, unfolding_point]
+                
+        
+        # NOTE: since ending on the EOS token would fail for mini-batches, 
+        # the algorithm stops at a maxLen when the length of the sentence 
+        # is maxLen
+        for _ in range(self.max_senLen):                
+                
+            token, unfolding_point = Lambda(create_new_token)([one_softmax, unfolding_point])
+            
+            # get the softmax for the next iteration
+            embed = self.embedding(token)
+            rnn_output = self.rnn(embed)
+            one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
+            
+            final_softmaxes = Concatenate(axis=1)([final_softmaxes, one_softmax])
+            
+            if final_tokens == None:
+                final_tokens = token
+            else:
+                final_tokens = Concatenate(axis=1)([final_tokens, token])
+            
+            # NOTE: at each iteration, change the dimension
+            curDim += 1
+            if curDim >= self.latDim:
+                curDim = 0
+        
+        
+        # remove last softmax, since the initial was given by the an initial
+        # zero vector
+        
+        def slice_(x):
+            return x[:,:-1,:]
+
+        softmaxes = Lambda(slice_)(final_softmaxes)
+        tokens = final_tokens
+
+        # FIXME: give two options: the model giving back the whol softmaxes
+        # sequence, or the model giving back the sequence of tokens 
+        
+        if self.output_type == 'tokens':
+            output = tokens
+        elif self.output_type == 'softmaxes':
+            output = softmaxes
+        elif self.output_type == 'both':
+            output = [tokens, softmaxes]
+        else:
+            raise ValueError('the output_type specified is not implemented!')
+        
+        return output
+
+
+
+
 class Differential_AriEL(object):
     def __init__(self, 
                  vocabSize = 5, 
@@ -692,19 +843,13 @@ class Differential_AriEL(object):
 
 
     
-def print_base(a_class):
-    for base in a_class.__class__.__bases__:
-        print(base.__name__)
-        
-        
-    
 def test_new_Decoder():
     
     import numpy as np
     
     vocabSize = 3
     max_senLen = 6
-    batchSize = 1 #4
+    batchSize = 4 #4
     latDim = 4
     embDim = 2
     points = np.random.rand(batchSize, latDim)
@@ -714,7 +859,7 @@ def test_new_Decoder():
                                  embDim = embDim, 
                                  latDim = latDim, 
                                  max_senLen = max_senLen, 
-                                 output_type='tokens')
+                                 output_type='softmaxes')
     
     prediction = model.predict(points)
     
@@ -767,24 +912,6 @@ def append_tf():
     
     
     
-def explore_curDim():
-
-    curDim = tf.constant(2)
-    ones = tf.cumsum(tf.fill([3,4], 1.0), 1)
-    
-    value_of_interest = ones[:, curDim]         
-    
-    one_hots = Lambda(dynamic_one_hot, arguments={'d': 3, 'pos': 2})(ones)
-    
-    
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        
-        print(sess.run([ones]))
-        print('')
-        print(sess.run([value_of_interest]))
-        print('')
-        print(sess.run([one_hots]))
 
 
 if __name__ == '__main__':    
