@@ -84,7 +84,7 @@ class vAriEL_Encoder_Layer(object):
     
         # a zero vector is concatenated as the first word embedding 
         # to start running the RNN that will follow
-        concatenation = concatenate([RNN_starter, embed], axis = 1)
+        concatenation = Concatenate(axis=1)([RNN_starter, embed])
           
         rnn_output = self.rnn(concatenation)    
         softmax = TimeDistributed(Activation('softmax'))(rnn_output)
@@ -802,14 +802,14 @@ class Differential_AriEL(object):
             self.rnn = LSTM(vocabSize, return_sequences=True)
         
         if embedding == None:
-            embedding = Embedding(vocabSize, embDim)
+            self.embedding = Embedding(vocabSize, embDim)
             
         try:
             assert 'return_state' in self.rnn.get_config()
         except AttributeError:
             raise
         #assert 'return_state' in rnn.get_config()
-        assert 'embeddings_initializer' in embedding.get_config()
+        assert 'embeddings_initializer' in self.embedding.get_config()
         
         # FIXME: clarify what to do with the padding and EOS
         # vocabSize + 1 for the keras padding + 1 for EOS        

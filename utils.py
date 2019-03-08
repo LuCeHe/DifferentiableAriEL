@@ -143,24 +143,24 @@ def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
 def checkDuringTraining(generator_class, indices_sentences, ae_model, decoder_model, batchSize, latDim):
     
     
-    print("""
-          test ae
-          
-          """)
+    #print("""
+    #      test ae
+    #      
+    #      """)
     print('original sentences')
     print('')
     sentences = generator_class.indicesToSentences(indices_sentences)
     print(sentences)
-    indicess = ae_model.predict(indices_sentences)
-    sentences_reconstructed = generator_class.indicesToSentences(indicess)
-    print('')
-    print('original indices')
-    print('')
-    print(indicess)
-    print('')
-    print('reconstructed sentences')
-    print('')
-    print(sentences_reconstructed)
+    #indicess = ae_model.predict(indices_sentences)
+    #sentences_reconstructed = generator_class.indicesToSentences(indicess)
+    #print('')
+    #print('original indices')
+    #print('')
+    #print(indicess)
+    #print('')
+    #print('reconstructed sentences')
+    #print('')
+    #print(sentences_reconstructed)
     print("""
           test decoder
           

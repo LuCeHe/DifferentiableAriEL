@@ -41,7 +41,7 @@ grammar = CFG.fromstring("""
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 6 #24
-batchSize = 64
+batchSize = 32
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
 latDim = 5
@@ -50,7 +50,8 @@ embDim = 2
 
 
 epochs = 1
-epochs_in = 1000
+steps_per_epoch=2
+epochs_in = 10
 latentTestRate = int(epochs_in/10)
 
 
@@ -61,7 +62,7 @@ def main_MSE():
     # create experiment folder to save the results
     experiment_path = make_directories()
     
-    # dataset to be learned<
+    # dataset to be learned
     generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen)
     generator = generator_class.generator()
 
@@ -83,7 +84,7 @@ def main_MSE():
     continuous_latent_space = DAriA_dcd.encode(input_question)
     # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
     #continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
-    continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
+    #continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
@@ -93,7 +94,7 @@ def main_MSE():
     clippedAdam = optimizers.Adam(lr=.2, clipnorm=1.)
     ae_model.compile(loss='mean_absolute_error', optimizer=clippedAdam)
     print('')
-    ae_model.summary()
+    #ae_model.summary()
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
@@ -118,14 +119,17 @@ def main_MSE():
               
               """)
         indices_sentences = next(generator)
-        predictions = ae_model.predict(indices_sentences)
-        print(predictions)
-        ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
-                     callbacks=callbacks, validation_data = (valIndices, valIndices))    
+        #predictions = ae_model.predict(indices_sentences[0])
+        #print(predictions)
+        ae_model.fit_generator(generator, 
+                               steps_per_epoch=steps_per_epoch,
+                               epochs=epochs_in, 
+                               callbacks=callbacks, 
+                               validation_data = valIndices)    
         
         # FIXME: noise in the latent rep
         if epoch%latentTestRate == 0:
-            softmaxes = checkDuringTraining(generator_class, indices_sentences, ae_model, decoder_model, batchSize, latDim)
+            softmaxes = checkDuringTraining(generator_class, indices_sentences[0], ae_model, decoder_model, batchSize, latDim)
 
             first_softmax_evolution.append(softmaxes[0][0])
             second_softmax_evolution.append(softmaxes[0][1])
@@ -172,21 +176,20 @@ def main_CCE():
     continuous_latent_space = DAriA_dcd.encode(input_question)
     # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
     #continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
-    continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
+    #continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
 
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
-    ae_model = Model(inputs=input_question, outputs=discrete_output[1])      
-    
+    ae_model = Model(inputs=input_question, outputs=discrete_output[1])       
     
     clippedAdam = optimizers.Adam(lr=.2, clipnorm=1.)
     ae_model.compile(loss='categorical_crossentropy', optimizer=clippedAdam)
     print('')
-    ae_model.summary()
+    #ae_model.summary()
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
-    callbacks = [tensorboard]  #  [] # 
+    callbacks =  [] #[tensorboard]  #  
     
     # reuse decoder to define a model to test generation capacity
     input_point = Input(shape=(latDim,), name='continuous_input')
@@ -207,14 +210,19 @@ def main_CCE():
               
               """)
         indices_sentences = next(generator)
-        predictions = ae_model.predict(indices_sentences)
-        print(predictions)
-        ae_model.fit(indices_sentences, indices_sentences, epochs=epochs_in, 
-                     callbacks=callbacks, validation_data = (valIndices, valIndices))    
-        
+        print(indices_sentences[0].shape, indices_sentences[1].shape)
+        #predictions = ae_model.predict(indices_sentences[0])
+        #print(predictions)
+        ae_model.fit_generator(generator, 
+                               steps_per_epoch=steps_per_epoch,
+                               epochs=epochs_in, 
+                               callbacks=callbacks, 
+                               validation_data = valIndices)    
+
+
         # FIXME: noise in the latent rep
         if epoch%latentTestRate == 0:
-            softmaxes = checkDuringTraining(generator_class, indices_sentences, ae_model, decoder_model, batchSize, latDim)
+            softmaxes = checkDuringTraining(generator_class, indices_sentences[0], ae_model, decoder_model, batchSize, latDim)
 
             first_softmax_evolution.append(softmaxes[0][0])
             second_softmax_evolution.append(softmaxes[0][1])
@@ -231,8 +239,6 @@ def main_CCE():
     print(generator_class.vocabulary.indicesByTokens)
     print('')
     print(grammar)
-
-
     
 
     

@@ -121,10 +121,11 @@ class c2n_generator(object):
             sentencesIndices = [self.vocabulary.tokensToIndices(listOfTokens, offset=offset) for listOfTokens in sentencesCharacters]
             indices = pad_sequences(sentencesIndices, maxlen=self.maxlen)
             
-            if self.categorical:
-                indices = to_categorical(indices, num_classes = self.vocabSize)
-                
-            yield indices
+            if not self.categorical:
+                yield indices, indices
+            else:
+                categorical_indices = to_categorical(indices, num_classes = self.vocabSize)
+                yield indices, categorical_indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):

@@ -541,6 +541,8 @@ def test_vAriEL_dcd_CCE():
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
     
+    model.summary()
+    
     for layer in model.predict(questions):
         print(layer)
         print('\n')
@@ -618,7 +620,7 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
     print('=========================================================================================')    
-    test_DAriA_Decoder_cross_entropy()
+    #test_DAriA_Decoder_cross_entropy()
     print('=========================================================================================')    
-    #test_vAriEL_dcd_CCE()
+    test_vAriEL_dcd_CCE()
     #test_new_Decoder()
