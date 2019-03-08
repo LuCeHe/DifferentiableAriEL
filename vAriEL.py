@@ -445,72 +445,46 @@ class pointToProbs(object):
             # unit hypercube
             eps = .5e-6
             clipped_point = K.clip(input_point,0.+eps,1.-eps)
-            unfolding_point = clipped_point
-            
+            unfolding_point = clipped_point            
             
             # `tf.shape(input)` takes the dynamic shape of `input`.
-            final_softmaxes = tf.fill([tf.shape(initial_softmax)[0]] + [self.max_senLen, self.vocabSize], 0.5)
-            final_tokens = tf.fill([tf.shape(initial_softmax)[0]] + [self.max_senLen], 0)
-
-            print('')
-            print('shapes before body')
-            print(tf.shape(initial_softmax)[1])
-            print(tf.shape(final_tokens))
+            final_softmaxes = one_softmax
+            final_tokens = dynamic_ones(one_softmax, 1)
+            
             # NOTE: since ending on the EOS token would fail for mini-batches, 
             # the algorithm stops at a maxLen when the length of the sentence 
             # is maxLen
             
             curDim = tf.constant(0)   
-            latDim = tf.constant(self.latDim) 
-            vocabSize = tf.constant(self.vocabSize)
             i = tf.constant(0)
-            iters = tf.constant(self.max_senLen)
-            #iters = tf.constant(1)
+            
+            loop_variables = [unfolding_point, 
+                              one_softmax,
+                              final_tokens,
+                              final_softmaxes,
+                              curDim, 
+                              i]
             
             
-            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)    # throw away when functional!!!!
-            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*vocabSize, 1)    # throw away when functional!!!!
-                
-                
-            def cond(value_of_interest, unfolding_point, 
-                     one_softmax, 
-                     final_tokens, 
-                     final_softmaxes, 
-                     vocabSize,
-                     curDim, latDim,
-                     i, iters):
-                return tf.less(i, iters)
+            def cond(unfolding_point, 
+                     one_softmax,
+                     final_tokens,
+                     final_softmaxes,
+                     curDim, 
+                     i):
+                return tf.less(i, self.max_senLen)
             
-            def body(value_of_interest, unfolding_point, 
-                     one_softmax, 
-                     final_tokens, 
-                     final_softmaxes, 
-                     vocabSize,
-                     curDim, latDim,
-                     i, iters):
+            def body(unfolding_point, 
+                     one_softmax,
+                     final_tokens,
+                     final_softmaxes,
+                     curDim, 
+                     i):
                 
                 #vocabSize = lambda: self.vocabSize
                 #latDim = lambda: self.latDim
-                rnn = lambda: self.rnn
-                embedding = lambda: self.embedding
-                
-                slice_1 = final_softmaxes[:, :1, :]
-                slice_2 = one_softmax
-                slice_3 = final_softmaxes[:, 1+1:, :]
-                
-                print('')
-                print('softmaxes')
-                print(K.int_shape(final_softmaxes))
-                print(K.int_shape(slice_1))
-                print(K.int_shape(slice_2))                
-                print(K.int_shape(slice_3))
-
-                #final_softmaxes[:, :, :, i] = one_softmax
-                final_softmaxes = tf.stack([slice_1, 
-                                            slice_2, 
-                                            slice_3], axis=1)
-                    
-                print(K.int_shape(final_softmaxes))
+                rnn = lambda x: self.rnn
+                embedding = lambda x: self.embedding
                 
                 cumsum = K.cumsum(one_softmax, axis=2)
                 cumsum = K.squeeze(cumsum, axis=1)
@@ -518,57 +492,98 @@ class pointToProbs(object):
                 cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
                 
                 expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*vocabSize, 1)                
+                value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)                
                 
                 # determine the token selected (2 steps: xor and token)
                 # differentiable xor (instead of tf.logical_xor)                
-                #c_minus_v = tf.subtract(cumsum, value_of_interest)
-
-                                
-                token = tf.fill([tf.shape(initial_softmax)[0]] + [1], 0)
+                c_minus_v = tf.subtract(cumsum, value_of_interest)
+                ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
+                signed_xor = c_minus_v*ce_minus_c
+                abs_sx = tf.abs(signed_xor)
+                almost_xor = tf.divide(signed_xor, abs_sx)
+                almost_xor = tf.add(almost_xor, -1)
+                xor = tf.abs(tf.divide(almost_xor, -2))
                 
-                slice_1 = final_tokens[:, :i]
-                slice_2 = token
-                slice_3 = final_tokens[:, i+1:]
-
-                print('')
-                print('tokens')      
-                print(K.int_shape(final_tokens))
-                print(K.int_shape(slice_1))
-                print(K.int_shape(slice_2))                
-                print(K.int_shape(slice_3))
-
-                #final_softmaxes[:, :, :, i] = one_softmax
-                final_softmaxes = tf.stack([slice_1, 
-                                            slice_2, 
-                                            slice_3])
-
-                # determine the token selected (2 steps: xor and token)
-                # differentiable xor (instead of tf.logical_xor)                
-                #c_minus_v = tf.subtract(cumsum, value_of_interest)
+                # differentiable argmax (instead of tf.argmax)                
+                almost_token = tf.divide(c_minus_v, tf.abs(c_minus_v))
+                almost_token = tf.abs(tf.divide(tf.add(almost_token, -1),-2))
+                token = tf.reduce_sum(almost_token, axis=1)
+                token = tf.expand_dims(token, axis=1)
                 
+                # expand dimensions to be able to performa a proper matrix 
+                # multiplication after
+                xor = tf.expand_dims(xor, axis=1)
+                cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)                   
+                
+                # the c_iti value has to be subtracted to the point for the 
+                # next round on this dimension                
+                c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
+                c_iti_value = tf.squeeze(c_iti_value, axis=1)
+                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                one_hots = tf.squeeze(one_hots, axis=1)
+                
+                c_iti = c_iti_value*one_hots
+                unfolding_point = tf.subtract(unfolding_point, c_iti)
+                
+                # the p_iti value has to be divided to the point for the next
+                # round on this dimension                
+                one_hots = Lambda(dynamic_one_hot, arguments={'d': self.latDim, 'pos': curDim})(first_softmax)
+                one_hots = tf.squeeze(one_hots, axis=1)
+                p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
+                p_iti_value = K.squeeze(p_iti_value, axis=1)
+                p_iti_and_zeros = p_iti_value*one_hots
+                ones = Lambda(dynamic_ones, arguments={'d': self.latDim})(first_softmax)
+                ones = K.squeeze(ones, axis=1)
+                p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
+                p_iti = tf.subtract(p_iti_plus_ones, one_hots)
+                
+                unfolding_point = tf.divide(unfolding_point, p_iti)
+                
+                # get the softmax for the next iteration
+                embed = embedding(token)
+                rnn_output = rnn(embed)
+                print(rnn_output)
+                one_softmax = TimeDistributed(Activation('softmax'))(rnn_output)
+                
+                final_softmaxes = tf.concat([final_softmaxes, one_softmax], axis=1, name='concat_softmaxes')
+                final_tokens = tf.concat([final_tokens, token], axis=1, name='concat_tokens')
                 
                 # NOTE: at each iteration, change the dimension
-                curDim = tf.add(curDim, 1)
-                if tf.greater_equal(curDim, latDim) is not None:
-                    curDim = tf.constant(0)            
+                #curDim += 1
+                #if curDim >= self.latDim:
+                #    curDim = 0
+            
+                # NOTE: at each iteration, change the dimension
+                #curDim = tf.add(curDim, 1)
+                #if tf.greater_equal(curDim, latDim) is not None:
+                #    curDim = tf.constant(0)            
                     
-                return [value_of_interest, unfolding_point, 
+                    
+                new_i = tf.add(i, 1)
+                new_curDim = tf.add(curDim, 1)
+                new_curDim = tf.mod(new_curDim, self.latDim)
+                
+                return [unfolding_point, 
                         one_softmax, 
                         final_tokens, 
                         final_softmaxes, 
-                        vocabSize,
-                        curDim, latDim,
-                        tf.add(i, 1), iters]
+                        curDim,
+                        new_i]
             
             
-            res = tf.while_loop(cond, body, [value_of_interest, unfolding_point, 
-                                             one_softmax,
-                                             final_tokens, 
-                                             final_softmaxes, 
-                                             vocabSize, latDim,
-                                             curDim, 
-                                             i, iters])
+            # the shapes of final_softmaxes and final_tokens are set to tf.TensorShape(None)
+            # because they vary in size and that's non standard for tf.while_loop
+            res = tf.while_loop(cond, body, loop_variables,
+                                shape_invariants=[unfolding_point.get_shape(), 
+                                                  one_softmax.get_shape(), 
+                                                  tf.TensorShape(None), 
+                                                  tf.TensorShape(None), 
+                                                  curDim.get_shape(),
+                                                  i.get_shape()])
+                                        
+                                        
+                                        
+                                        
             
             # remove last softmax, since the initial was given by the an initial
             # zero vector
@@ -577,7 +592,7 @@ class pointToProbs(object):
             #final_tokens = tf.cast(final_tokens, tf.int32)
             
             
-            return  [final_tokens, final_softmaxes, value_of_interest]
+            return  [final_tokens, final_softmaxes] + res
 
         # FIXME: give two options: the model giving back the whol softmaxes
         # sequence, or the model giving back the sequence of tokens 
@@ -709,39 +724,76 @@ def test_new_Decoder():
 
 def append_tf():
     
-    max_senLen = 4
-    final_softmaxes = tf.fill([3, max_senLen], -1)
-
-    i = tf.constant(0)
-    iters = tf.constant(max_senLen)
-            
-    def cond(final_softmaxes, 
-             i, iters):
-        return tf.less(i, iters)
+    max_reps = 7
     
-    def body(final_softmaxes, 
-             i, iters):
+    
+    i = tf.constant(0)
+    ones = tf.fill([3,1], 1.0) 
+    final_softmaxes = tf.Variable(ones)
+    
+    def cond(i, final_softmaxes):
+        return tf.less(i, max_reps)
+
+    def body(i, final_softmaxes):  
+        new_i =  tf.add(i, 1)
+        curdim = tf.mod(new_i, 4)
+        
+        ones = tf.fill([3,1], -tf.to_float(curdim))        
+        
+        final_softmaxes = tf.concat([final_softmaxes, ones], 1)
         
         
-        return [final_softmaxes, 
-                tf.add(i, 1), iters]
-
-    res = tf.while_loop(cond, body, [final_softmaxes, 
-                                     i, iters])
-
-    #initialize the variable
-    #init_op = tf.initialize_all_variables()
+        return new_i, final_softmaxes
+    
+    i, final_softmaxes = tf.while_loop(cond, body, [i, final_softmaxes],
+                                     shape_invariants=[i.get_shape(),
+                                                       tf.TensorShape(None)])
+                    
+                    
+    final_softmaxes = final_softmaxes[:, :-1]
+    final_softmaxes.set_shape([3,max_reps])
+    print(K.int_shape(final_softmaxes))
+    
     
     #run the graph
     with tf.Session() as sess:
-        #sess.run(init_op) #execute init_op
-        #print the random values that we sample
-        print(sess.run(final_softmaxes))
+        sess.run(tf.global_variables_initializer())
+        print(sess.run([final_softmaxes, i]))
+        print(final_softmaxes)
+        print(K.int_shape(final_softmaxes))
+        print(tf.shape(final_softmaxes))
+        print(final_softmaxes.shape)    
     
+    
+    
+    
+def explore_curDim():
+
+    curDim = tf.constant(2)
+    ones = tf.cumsum(tf.fill([3,4], 1.0), 1)
+    
+    value_of_interest = ones[:, curDim]         
+    
+    one_hots = Lambda(dynamic_one_hot, arguments={'d': 3, 'pos': 2})(ones)
+    
+    
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        
+        print(sess.run([ones]))
+        print('')
+        print(sess.run([value_of_interest]))
+        print('')
+        print(sess.run([one_hots]))
+
+
 if __name__ == '__main__':    
-    #test_new_Decoder()
-    append_tf()
+    test_new_Decoder()
+    #append_tf()
+    #explore_curDim()
     
-    
+    # - check curDim tf.mod works
+    # - remove first token from final_tokens
+    # - set shape of final_tokens and of final_softmaxes
     
     
