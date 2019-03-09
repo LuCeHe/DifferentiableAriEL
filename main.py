@@ -34,23 +34,23 @@ grammar = CFG.fromstring("""
 
 
 # grammar cannot have recursion!
-grammar = CFG.fromstring("""
-                         S -> 'ABC' | 'AAC' | 'BA'
-                         """)
+#grammar = CFG.fromstring("""
+#                         S -> 'ABC' | 'AAC' | 'BA'
+#                         """)
 
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 6 #24
+max_senLen = 24
 batchSize = 32
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
 latDim = 5
-embDim = 2
+embDim = 5
 
 
 
-epochs = 1
-steps_per_epoch=2
+epochs = 10
+steps_per_epoch = 10
 epochs_in = 10
 latentTestRate = int(epochs_in/10)
 
@@ -189,7 +189,7 @@ def main_CCE():
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
-    callbacks =  [] #[tensorboard]  #  
+    callbacks =  [tensorboard]  #[] #  
     
     # reuse decoder to define a model to test generation capacity
     input_point = Input(shape=(latDim,), name='continuous_input')
