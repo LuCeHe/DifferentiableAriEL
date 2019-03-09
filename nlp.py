@@ -1,4 +1,9 @@
-# Copyright (c) 2018, Simon Brodeur, Luca Celotti
+# Copyright (c) 2018, 
+#
+# authors: Simon Brodeur, Luca Celotti
+# during their PhD at Universite' de Sherbrooke
+# under the supervision of professor Jean Rouat
+#
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without modification,
