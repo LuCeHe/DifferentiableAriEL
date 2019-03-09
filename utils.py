@@ -182,8 +182,10 @@ def checkDuringTraining(generator_class, indices_sentences, encoder_model, decod
     print('')
 
     point = encoder_model.predict(indices_sentences)
-    sentences_reconstructed = decoder_model.predict(point)    
+    indices_reconstructed = decoder_model.predict(point)    
 
+    sentences_reconstructed = generator_class.indicesToSentences(indices_reconstructed[0])
+    
     print(sentences_reconstructed)
 
     print('')

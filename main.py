@@ -32,6 +32,9 @@
 
 # learn language in the AE
 
+
+import sys
+
 import numpy as np
 from nltk import CFG
 from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
@@ -73,8 +76,8 @@ embDim = 5
 
 
 
-epochs = 1
-steps_per_epoch = 2
+epochs = 10
+steps_per_epoch = 20
 epochs_in = 10
 latentTestRate = int(epochs_in/10)
 
@@ -84,6 +87,9 @@ def main(categorical_TF=True):
     # create experiment folder to save the results
     experiment_path = make_directories()
     
+    # write everythin in a file
+    sys.stdout = open(experiment_path + 'training.txt', 'w')
+
     # dataset to be learned
     generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
     generator = generator_class.generator()
@@ -110,17 +116,22 @@ def main(categorical_TF=True):
     
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
 
-    clippedAdam = optimizers.Adam(lr=10., clipnorm=1.)    
+    optimizer = optimizers.Adam(lr=.01)    # , clipnorm=1.
     if categorical_TF:
-        ae_model = Model(inputs=input_question, outputs=discrete_output[1])      
-        ae_model.compile(loss='categorical_crossentropy', optimizer=clippedAdam)
+        ae_model = Model(inputs=input_question, outputs=discrete_output[1])
+        ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
     else:
         ae_model = Model(inputs=input_question, outputs=discrete_output[0])
-        ae_model.compile(loss='mean_absolute_error', optimizer=clippedAdam)
+        ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
     
+    print('')    
+    print('################################################################################')
+    print('')
+    ae_model.summary()
+    print('')
+    print('################################################################################')
+    print('')
     
-
-    #ae_model.summary()
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
@@ -192,4 +203,4 @@ def main(categorical_TF=True):
 
     
 if __name__ == '__main__':
-    main(False)
+    main()
