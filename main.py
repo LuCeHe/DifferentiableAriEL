@@ -120,6 +120,8 @@ def main(categorical_TF=True):
     if categorical_TF:
         ae_model = Model(inputs=input_question, outputs=discrete_output[1])
         #ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
+        
+        # approximation to Wasserstain distance
         ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
     else:
         ae_model = Model(inputs=input_question, outputs=discrete_output[0])
