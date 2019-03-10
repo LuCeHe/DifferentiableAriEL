@@ -563,6 +563,9 @@ def test_vAriEL_dcd_CCE():
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
+    
+    continuous_latent_space = GaussianNoise('tensor')(continuous_latent_space)
+    
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
     
@@ -608,24 +611,6 @@ def test_DAriA_Decoder_wasserstein():
     """
     pass
 
-
-
-def test_new_Decoder():
-    
-
-    questions, points = random_sequences_and_points()
-    
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
-                                 embDim = embDim, 
-                                 latDim = latDim, 
-                                 max_senLen = max_senLen, 
-                                 output_type='softmaxes')
-    
-    prediction = model.predict(points)
-    
-    for layer in prediction:
-        print(layer)
 
 
 

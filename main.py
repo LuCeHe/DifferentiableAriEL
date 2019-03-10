@@ -76,8 +76,8 @@ embDim = 5
 
 
 
-epochs = 10
-steps_per_epoch = 20
+epochs = 1
+steps_per_epoch = 2
 epochs_in = 10
 latentTestRate = int(epochs_in/10)
 
@@ -119,7 +119,8 @@ def main(categorical_TF=True):
     optimizer = optimizers.Adam(lr=.01)    # , clipnorm=1.
     if categorical_TF:
         ae_model = Model(inputs=input_question, outputs=discrete_output[1])
-        ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
+        #ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
+        ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
     else:
         ae_model = Model(inputs=input_question, outputs=discrete_output[0])
         ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
@@ -184,8 +185,10 @@ def main(categorical_TF=True):
             first_softmax_evolution.append(softmaxes[0][0])
             second_softmax_evolution.append(softmaxes[0][1])
             third_softmax_evolution.append(softmaxes[0][2])
-             
             
+
+    softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
+
     print(first_softmax_evolution)
     plot_softmax_evolution(first_softmax_evolution, experiment_path + 'first_softmax_evolution')
     print(second_softmax_evolution)
