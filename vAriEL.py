@@ -52,6 +52,10 @@ def dynamic_ones(x, d):
     batch_size = tf.shape(x)[0]
     return tf.ones(tf.stack([batch_size, 1, d]))
 
+def dynamic_fill(x, d, value):
+    batch_size = tf.shape(x)[0]
+    return tf.fill(tf.stack([batch_size, 1, d]), value)
+
 def dynamic_one_hot(x, d, pos):
     batch_size = tf.shape(x)[0]
     one_hots = tf.ones(tf.stack([batch_size, 1, d]))*tf.one_hot(pos, d)
@@ -80,7 +84,8 @@ class vAriEL_Encoder_Layer(object):
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
-        RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(embed)
+        #RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(embed)
+        RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(embed)
     
         # a zero vector is concatenated as the first word embedding 
         # to start running the RNN that will follow
@@ -226,7 +231,10 @@ class vAriEL_Decoder_Layer(object):
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
-        RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(input_point)        
+        #RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(input_point)   
+        RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(input_point)
+    
+        
         lstm_output = self.rnn(RNN_starter)    
         first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
         
