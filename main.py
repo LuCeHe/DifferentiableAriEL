@@ -71,7 +71,7 @@ latDim = 5
 embDim = 5
 
 epochs = 1
-steps_per_epoch = 100
+steps_per_epoch = 400
 epochs_in = 1
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
@@ -98,6 +98,7 @@ def main(categorical_TF=True):
                                    embDim=embDim,
                                    latDim=latDim,
                                    max_senLen=max_senLen,
+                                   startId=generator_class.startId,
                                    output_type='both')
 
     input_question = Input(shape=(None,), name='discrete_sequence')
@@ -171,7 +172,7 @@ def main(categorical_TF=True):
             second_softmax_evolution.append(softmaxes[0][1])
             third_softmax_evolution.append(softmaxes[0][2])
 
-    softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
+    #softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
 
     print(first_softmax_evolution)
     plot_softmax_evolution(first_softmax_evolution, experiment_path + 'first_softmax_evolution')
@@ -242,15 +243,10 @@ def simpler_main(categorical_TF=True):
     
 
     print('\n\n\n')
-    
-    print('before:')
     batch_indices = np.argmax(before_predictions, axis=2)
-    sentences_reconstructed = generator_class.indicesToSentences(batch_indices)
-    print(sentences_reconstructed)
-    print('after:')    
+    sentences_reconstructed_before = generator_class.indicesToSentences(batch_indices)
     batch_indices = np.argmax(prediction, axis=2)
-    sentences_reconstructed = generator_class.indicesToSentences(batch_indices)
-    print(sentences_reconstructed)
+    sentences_reconstructed_after = generator_class.indicesToSentences(batch_indices)
 
     
     ################################################################################
@@ -263,7 +259,8 @@ def simpler_main(categorical_TF=True):
                                    max_senLen = max_senLen,
                                    output_type = 'both',
                                    embedding = embedding,
-                                   rnn = lstm)
+                                   rnn = lstm,
+                                   startId = generator_class.startId)
 
 
     decoder_input = Input(shape=(latDim,), name='decoder_input')
@@ -272,9 +269,19 @@ def simpler_main(categorical_TF=True):
     
     noise = np.random.rand(batchSize, latDim)
     indicess, _ = decoder_model.predict(noise)
-    print('DAriA generated:')
     sentences_generated = generator_class.indicesToSentences(indicess)
-    print(sentences_generated)
+    
+    
+    from prettytable import PrettyTable
+
+    table = PrettyTable(['before', 'after', 'DAriA generated'])
+    for b, a, g in zip(sentences_reconstructed_before, sentences_reconstructed_after, sentences_generated):
+        table.add_row([b, a, g])
+    for column in table.field_names:        
+        table.align[column] = "l"
+    print(table)
+    print('')
+    print('number unique generated sentences:   ', len(set(sentences_generated)))
     print('')
     print(generator_class.vocabulary.indicesByTokens)
     print('')
@@ -284,6 +291,5 @@ def simpler_main(categorical_TF=True):
 
     
 if __name__ == '__main__':
-    # main()
-    #toy()
-    simpler_main()
+    main()
+    #simpler_main()

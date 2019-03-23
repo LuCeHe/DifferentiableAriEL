@@ -168,35 +168,32 @@ def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
     
 def checkDuringTraining(generator_class, indices_sentences, encoder_model, decoder_model, batchSize, latDim):
     
-    
-    print('')
-    print('original sentences')
-    print('')
-
+    # original sentences
     sentences = generator_class.indicesToSentences(indices_sentences)
 
-    print(sentences)
-    
-    print('')
-    print('reconstructed sentences')
-    print('')
-
+    # reconstructed sentences
     point = encoder_model.predict(indices_sentences)
     indices_reconstructed, _ = decoder_model.predict(point)    
 
     sentences_reconstructed = generator_class.indicesToSentences(indices_reconstructed)
-    
-    print(sentences_reconstructed)
 
-    print('')
-    print('generated sentences')
-    print('')
-
+    # generated sentences
     noise = np.random.rand(batchSize, latDim)
     indicess, softmaxes = decoder_model.predict(noise)
     sentences_generated = generator_class.indicesToSentences(indicess)
 
-    print(sentences_generated)
+
+    from prettytable import PrettyTable
+
+    table = PrettyTable(['original', 'reconstructed', 'generated'])
+    for b, a, g in zip(sentences, sentences_reconstructed, sentences_generated):
+        table.add_row([b, a, g])
+    for column in table.field_names:        
+        table.align[column] = "l"
+    print(table)
+    
+    print('')
+    print('number unique generated sentences:   ', len(set(sentences_generated)))
     print('')
     print(softmaxes[0][0])
     print('')

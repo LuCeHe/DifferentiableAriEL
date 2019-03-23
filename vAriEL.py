@@ -64,8 +64,19 @@ def dynamic_one_hot(x, d, pos):
 
 
 class vAriEL_Encoder_Layer(object):
-    def __init__(self, vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):  
-        self.__dict__.update(vocabSize=vocabSize, embDim=embDim, latDim=latDim, rnn=rnn, embedding=embedding)
+    def __init__(self, 
+                 vocabSize = 101, 
+                 embDim = 2, 
+                 latDim = 4, 
+                 rnn = None, 
+                 embedding = None,
+                 startId=None):  
+        self.__dict__.update(vocabSize=vocabSize, 
+                             embDim=embDim, 
+                             latDim=latDim, 
+                             rnn=rnn, 
+                             embedding=embedding,
+                             startId=startId)
         
         
         # if the input is a rnn, use that, otherwise use an LSTM
@@ -74,24 +85,31 @@ class vAriEL_Encoder_Layer(object):
         if self.embedding == None:
             self.embedding = Embedding(vocabSize, embDim)
             
+        if self.startId == None: raise ValueError('Define the startId you are using ;) ')
+            
         assert 'return_state' in self.rnn.get_config()
         assert 'embeddings_initializer' in self.embedding.get_config()
         
     def __call__(self, input_questions):
         #input_questions = Input(shape=(None,), name='question')
         
-        embed = self.embedding(input_questions)
+        startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.startId)})(input_questions)
+        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        
+
+        concatenation = Concatenate(axis=1)([startId_layer, input_questions])
+        embed = self.embedding(concatenation)
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
         #RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(embed)
-        RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(embed)
+        # RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(embed)
     
         # a zero vector is concatenated as the first word embedding 
         # to start running the RNN that will follow
-        concatenation = Concatenate(axis=1)([RNN_starter, embed])
+        #concatenation = Concatenate(axis=1)([RNN_starter, embed])
           
-        rnn_output = self.rnn(concatenation)    
+        rnn_output = self.rnn(embed)    
         softmax = TimeDistributed(Activation('softmax'))(rnn_output)
         
         # this gradients don't work, FIXME!
@@ -112,10 +130,16 @@ class vAriEL_Encoder_Layer(object):
 
 
 
-def vAriEL_Encoder_model(vocabSize = 101, embDim = 2, latDim = 4, rnn = None, embedding = None):      
+def vAriEL_Encoder_model(vocabSize = 101, 
+                         embDim = 2, 
+                         latDim = 4, 
+                         rnn = None, 
+                         embedding = None,
+                         startId = None):      
     
     layer = vAriEL_Encoder_Layer(vocabSize = vocabSize, embDim = embDim, 
-                                 latDim = latDim, rnn = rnn, embedding = embedding)        
+                                 latDim = latDim, rnn = rnn, embedding = embedding,
+                                 startId = startId)        
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -185,12 +209,14 @@ def vAriEL_Decoder_model(vocabSize = 101,
                          latDim = 4, 
                          max_senLen = 10, 
                          rnn=None, 
-                         embedding=None, 
+                         embedding=None,
+                         startId=None, 
                          output_type='both'):  
     
     layer = vAriEL_Decoder_Layer(vocabSize = vocabSize, embDim = embDim, 
                                  latDim = latDim, max_senLen = max_senLen, 
-                                 rnn=rnn, embedding=embedding, output_type=output_type)
+                                 rnn=rnn, embedding=embedding, startId=startId, 
+                                 output_type=output_type)
     input_point = Input(shape=(latDim,), name='input_point')
     output = layer(input_point)    
     model = Model(inputs=input_point, outputs=output)
@@ -206,6 +232,7 @@ class vAriEL_Decoder_Layer(object):
                  max_senLen = 10, 
                  rnn=None, 
                  embedding=None, 
+                 startId=None,
                  output_type='both'):  
         
         
@@ -215,6 +242,7 @@ class vAriEL_Decoder_Layer(object):
                              max_senLen=max_senLen,
                              rnn=rnn, 
                              embedding=embedding, 
+                             startId=startId,
                              output_type=output_type)
         
         # if the input is a rnn, use that, otherwise use an LSTM
@@ -222,7 +250,9 @@ class vAriEL_Decoder_Layer(object):
             self.rnn = LSTM(vocabSize, return_sequences=True)
         if self.embedding == None:
             self.embedding = Embedding(vocabSize, embDim)
-            
+        
+        if self.startId == None: raise ValueError('Define the startId you are using ;) ')
+        
         assert 'return_state' in self.rnn.get_config()
         assert 'embeddings_initializer' in self.embedding.get_config()
         
@@ -232,10 +262,15 @@ class vAriEL_Decoder_Layer(object):
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
         #RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(input_point)   
-        RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(input_point)
-    
+        #RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(input_point)
         
-        lstm_output = self.rnn(RNN_starter)    
+        
+        startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': self.startId})(input_point)
+        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        
+
+        embed = self.embedding(startId_layer)
+        lstm_output = self.rnn(embed)    
         first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
         
         output = pointToProbs(vocabSize=self.vocabSize, 
@@ -248,12 +283,6 @@ class vAriEL_Decoder_Layer(object):
     
         return output
 
-
-
-
-
-
-    
 
 
 
@@ -415,6 +444,7 @@ class Differential_AriEL(object):
                  latDim = 3, 
                  rnn=None, 
                  embedding=None,
+                 startId=None,
                  max_senLen = 10, 
                  output_type = 'both'):
 
@@ -423,6 +453,7 @@ class Differential_AriEL(object):
                              embDim=embDim, 
                              rnn=rnn,
                              embedding=embedding,
+                             startId=startId,
                              max_senLen=max_senLen, 
                              output_type=output_type)
         
@@ -435,6 +466,8 @@ class Differential_AriEL(object):
             self.rnn = LSTM(vocabSize, return_sequences=True)        
         if embedding == None:
             self.embedding = Embedding(vocabSize, embDim)
+            
+        if self.startId == None: raise ValueError('Define the startId you are using ;) ')
             
         try:
             assert 'return_state' in self.rnn.get_config()
@@ -449,7 +482,8 @@ class Differential_AriEL(object):
                                                   embDim = self.embDim, 
                                                   latDim = self.latDim,
                                                   rnn = self.rnn,
-                                                  embedding = self.embedding)
+                                                  embedding = self.embedding,
+                                                  startId = self.startId)
         
         self.DAriA_decoder = vAriEL_Decoder_Layer(vocabSize = self.vocabSize, 
                                                   embDim = self.embDim, 
@@ -457,6 +491,7 @@ class Differential_AriEL(object):
                                                   max_senLen = self.max_senLen,
                                                   rnn = self.rnn,
                                                   embedding = self.embedding,
+                                                  startId = self.startId,
                                                   output_type = self.output_type)
         
         

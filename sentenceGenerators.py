@@ -135,9 +135,11 @@ class c2n_generator(object):
         print('')
         # +1 to take into account padding
         self.vocabSize = self.vocabulary.getMaxVocabularySize()
+        self.startId = self.vocabulary.tokenToIndex(self.vocabulary.endToken)
         
         #self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
+        
         
     def generator(self, offset=0):
         while True:
