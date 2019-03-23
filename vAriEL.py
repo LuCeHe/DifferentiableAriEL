@@ -246,7 +246,9 @@ class vAriEL_Decoder_Layer(object):
                              output_type=output_type)
         
         # if the input is a rnn, use that, otherwise use an LSTM
+        print('On passe par ici')
         if self.rnn == None:
+            print('Et par ici')
             self.rnn = LSTM(vocabSize, return_sequences=True)
         if self.embedding == None:
             self.embedding = Embedding(vocabSize, embDim)
@@ -265,21 +267,15 @@ class vAriEL_Decoder_Layer(object):
         #RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(input_point)
         
         
-        startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': self.startId})(input_point)
-        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
-        
 
-        embed = self.embedding(startId_layer)
-        lstm_output = self.rnn(embed)    
-        first_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
-        
         output = pointToProbs(vocabSize=self.vocabSize, 
                               latDim=self.latDim, 
                               embDim=self.embDim, 
                               max_senLen=self.max_senLen, 
                               rnn=self.rnn, 
                               embedding=self.embedding, 
-                              output_type=self.output_type)([first_softmax, input_point])
+                              startId=self.startId,
+                              output_type=self.output_type)(input_point)
     
         return output
 
@@ -295,6 +291,7 @@ class pointToProbs(object):
                  max_senLen=10, 
                  rnn=None, 
                  embedding=None, 
+                 startId=None,
                  output_type = 'both'):
         """        
         inputs:
@@ -302,10 +299,21 @@ class pointToProbs(object):
         """
         self.__dict__.update(vocabSize=vocabSize, latDim=latDim, 
                              embDim=embDim, max_senLen=max_senLen, 
-                             rnn=rnn, embedding=embedding, output_type=output_type)
+                             rnn=rnn, embedding=embedding, 
+                             startId=startId, 
+                             output_type=output_type)
     
     def __call__(self, inputs):
-        initial_softmax, input_point = inputs
+        input_point = inputs
+        
+        
+        startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.startId)})(input_point)
+        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        
+        embed = self.embedding(startId_layer)
+        lstm_output = self.rnn(embed)    
+        initial_softmax = TimeDistributed(Activation('softmax'))(lstm_output)    
+        
         
         one_softmax = initial_softmax
         
@@ -321,7 +329,7 @@ class pointToProbs(object):
         unfolding_point = clipped_layer
         
         final_softmaxes = one_softmax
-        final_tokens = None
+        final_tokens = None  #startId_layer
         curDim = 0
 
 
@@ -506,88 +514,17 @@ class Differential_AriEL(object):
         
         
 
-   
-
-
-    
-def test_new_Decoder():
-    
+def test():
     import numpy as np
-    
-    vocabSize = 3
-    max_senLen = 6
-    batchSize = 4 #4
-    latDim = 4
-    embDim = 2
-    points = np.random.rand(batchSize, latDim)
-    
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
-                                 embDim = embDim, 
-                                 latDim = latDim, 
-                                 max_senLen = max_senLen, 
-                                 output_type='softmaxes')
-    
-    prediction = model.predict(points)
-    
-    for layer in prediction:
-        print(layer)
-
-
-def append_tf():
-    
-    max_reps = 7
-    
-    
-    i = tf.constant(0)
-    ones = tf.fill([3,1], 1.0) 
-    final_softmaxes = tf.Variable(ones)
-    
-    def cond(i, final_softmaxes):
-        return tf.less(i, max_reps)
-
-    def body(i, final_softmaxes):  
-        new_i =  tf.add(i, 1)
-        curdim = tf.mod(new_i, 4)
-        
-        ones = tf.fill([3,1], -tf.to_float(curdim))        
-        
-        final_softmaxes = tf.concat([final_softmaxes, ones], 1)
-        
-        
-        return new_i, final_softmaxes
-    
-    i, final_softmaxes = tf.while_loop(cond, body, [i, final_softmaxes],
-                                     shape_invariants=[i.get_shape(),
-                                                       tf.TensorShape(None)])
-                    
-                    
-    final_softmaxes = final_softmaxes[:, :-1]
-    final_softmaxes.set_shape([3,max_reps])
-    print(K.int_shape(final_softmaxes))
-    
-    
-    #run the graph
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        print(sess.run([final_softmaxes, i]))
-        print(final_softmaxes)
-        print(K.int_shape(final_softmaxes))
-        print(tf.shape(final_softmaxes))
-        print(final_softmaxes.shape)    
-    
-    
-    
+    sentences = np.array([[0, 0, 1, 2, 2],
+                          [0, 1, 1, 1, 1],
+                          [0, 0, 1, 1, 1]])
+    model = vAriEL_Encoder_model(vocabSize=3, startId=0)
+    prediction = model.predict(sentences)
+    print(prediction)
     
 
 
 if __name__ == '__main__':    
-    test_new_Decoder()
-    #append_tf()
-    #explore_curDim()
-    
-    # - check curDim tf.mod works
-    # - remove first token from final_tokens
-    # - set shape of final_tokens and of final_softmaxes
-    
+    test()
     

@@ -64,7 +64,7 @@ grammar = CFG.fromstring("""
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 4
-batchSize = 32
+batchSize = 128
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
 latDim = 5
@@ -72,7 +72,7 @@ embDim = 5
 
 epochs = 1
 steps_per_epoch = 400
-epochs_in = 1
+epochs_in = 0
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
@@ -274,14 +274,14 @@ def simpler_main(categorical_TF=True):
     
     from prettytable import PrettyTable
 
-    table = PrettyTable(['before', 'after', 'DAriA generated'])
+    table = PrettyTable(['reconstruction LM before training', 'reconstruction LM after training', 'DAriA generated with that LM'])
     for b, a, g in zip(sentences_reconstructed_before, sentences_reconstructed_after, sentences_generated):
         table.add_row([b, a, g])
     for column in table.field_names:        
         table.align[column] = "l"
     print(table)
     print('')
-    print('number unique generated sentences:   ', len(set(sentences_generated)))
+    print('number unique generated sentences:  %s / %s '%(len(set(sentences_generated)), batchSize))
     print('')
     print(generator_class.vocabulary.indicesByTokens)
     print('')
@@ -291,5 +291,5 @@ def simpler_main(categorical_TF=True):
 
     
 if __name__ == '__main__':
-    main()
-    #simpler_main()
+    #main()
+    simpler_main()
