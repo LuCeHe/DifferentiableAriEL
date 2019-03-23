@@ -182,9 +182,9 @@ def checkDuringTraining(generator_class, indices_sentences, encoder_model, decod
     print('')
 
     point = encoder_model.predict(indices_sentences)
-    indices_reconstructed = decoder_model.predict(point)    
+    indices_reconstructed, _ = decoder_model.predict(point)    
 
-    sentences_reconstructed = generator_class.indicesToSentences(indices_reconstructed[0])
+    sentences_reconstructed = generator_class.indicesToSentences(indices_reconstructed)
     
     print(sentences_reconstructed)
 
@@ -194,6 +194,10 @@ def checkDuringTraining(generator_class, indices_sentences, encoder_model, decod
 
     noise = np.random.rand(batchSize, latDim)
     indicess, softmaxes = decoder_model.predict(noise)
+    print(indicess)
+    print(softmaxes)
+    print('\n\n\n')
+    print('HERE!!')
     sentences_generated = generator_class.indicesToSentences(indicess)
 
     print(sentences_generated)
