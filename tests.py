@@ -37,7 +37,9 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
-                         RepeatVector, Activation, GaussianNoise
+                         RepeatVector, Activation, GaussianNoise, Flatten, \
+                         Reshape
+                         
 from keras.utils import to_categorical
 import tensorflow as tf
 from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
@@ -602,6 +604,63 @@ def test_vAriEL_dcd_CCE():
 
 
 
+def test_vAriEL_onMNIST():
+    from keras.datasets import mnist
+    
+    
+    # input image dimensions
+    img_rows, img_cols = 28, 28
+    
+    # the data, split between train and test sets
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+    
+    x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+    x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+    input_shape = (img_rows, img_cols, 1)
+
+    x_train = x_train.astype('float32')
+    x_test = x_test.astype('float32')
+    x_train /= 255
+    x_test /= 255
+
+    
+    print("""
+          Test Auto-Encoder on MNIST
+          
+          """)        
+    
+    latDim = np.prod(input_shape)
+    DAriA_cdc = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'tokens')
+
+
+    input_image = Input(shape=input_shape, name='discrete_sequence')
+    input_point = Flatten()(input_image)    
+    
+    discrete_output = DAriA_cdc.decode(input_point)
+    continuous_output = DAriA_cdc.encode(discrete_output)
+    
+    output_image = Reshape(input_shape)(continuous_output)
+    # vocabSize + 1 for the keras padding + 1 for EOS
+    model = Model(inputs=input_image, outputs=output_image)   # + [continuous_latent_space])    
+    #model.summary()
+    
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    model.compile(loss='mean_squared_error', optimizer='sgd')
+    model.fit(x_train, x_train)    
+    
+    # reconstruction is perfect by construction of the representation:
+    # the goal is to find a way to trim the tree
+
+
     
    
 def test_DAriA_Decoder_wasserstein():
@@ -632,5 +691,6 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_DAriA_Decoder_cross_entropy()
     print('=========================================================================================')    
-    test_vAriEL_dcd_CCE()
+    #test_vAriEL_dcd_CCE()
     #test_new_Decoder()
+    test_vAriEL_onMNIST()
