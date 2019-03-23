@@ -214,11 +214,6 @@ class Vocabulary(object):
         return self.tokens[idx]
 
     def indicesToTokens(self, indices, offset=0):
-        #print(indices)
-        #for i in indices:
-        #    print(i)
-        #    print(i, self.tokens[i-offset])
-        print(indices)
         return [self.tokens[i-offset] for i in indices]
 
     def tokenToIndex(self, token, offset=0):

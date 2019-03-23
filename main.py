@@ -29,9 +29,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
 # learn language in the AE
-
 
 import sys
 
@@ -41,7 +39,7 @@ from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriE
 from sentenceGenerators import c2n_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
-                         GaussianNoise
+                         GaussianNoise, Activation
 from keras import optimizers
 from keras.callbacks import TensorBoard
 from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
@@ -59,12 +57,10 @@ grammar = CFG.fromstring("""
                          P -> 'on' | 'in'
                          """)
 
-
 # grammar cannot have recursion!
 grammar = CFG.fromstring("""
                          S -> 'ABC' | 'AAC' | 'BA'
                          """)
-
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 4
@@ -74,12 +70,10 @@ batchSize = 32
 latDim = 5
 embDim = 5
 
-
-
 epochs = 1
-steps_per_epoch = 2
-epochs_in = 10
-latentTestRate = int(epochs_in/10)
+steps_per_epoch = 100
+epochs_in = 1
+latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
 def main(categorical_TF=True):
@@ -88,7 +82,7 @@ def main(categorical_TF=True):
     experiment_path = make_directories()
     
     # write everythin in a file
-    sys.stdout = open(experiment_path + 'training.txt', 'w')
+    # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
     generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
@@ -96,30 +90,28 @@ def main(categorical_TF=True):
 
     vocabSize = generator_class.vocabSize    
 
-
     ################################################################################
     # Define the main model, the autoencoder
     ################################################################################
     
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'both')
-
+    DAriA_dcd = Differential_AriEL(vocabSize=vocabSize,
+                                   embDim=embDim,
+                                   latDim=latDim,
+                                   max_senLen=max_senLen,
+                                   output_type='both')
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA_dcd.encode(input_question)
     
-    #continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
-    #continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
+    # continuous_latent_space = TestActiveGaussianNoise(stddev=.08)(continuous_latent_space)
+    # continuous_latent_space = SelfAdjustingGaussianNoise()(continuous_latent_space)
     
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
 
-    optimizer = optimizers.Adam(lr=.01)    # , clipnorm=1.
+    optimizer = optimizers.Adam(lr=.01)  # , clipnorm=1.
     if categorical_TF:
         ae_model = Model(inputs=input_question, outputs=discrete_output[1])
-        #ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
+        # ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
         
         # approximation to Wasserstain distance
         ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
@@ -127,15 +119,7 @@ def main(categorical_TF=True):
         ae_model = Model(inputs=input_question, outputs=discrete_output[0])
         ae_model.compile(loss='mean_absolute_error', optimizer=optimizer)
     
-    print('')    
-    print('################################################################################')
-    print('')
-    ae_model.summary()
-    print('')
-    print('################################################################################')
-    print('')
-    
-    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,  
+    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,
                               write_graph=True, write_images=True, write_grads=True)
     tensorboard.set_model(ae_model)
     callbacks = [tensorboard]  #  [] # 
@@ -158,7 +142,6 @@ def main(categorical_TF=True):
     second_softmax_evolution = []
     third_softmax_evolution = []
     
-    
     ################################################################################
     # Train and test
     ################################################################################
@@ -172,22 +155,21 @@ def main(categorical_TF=True):
               
               """)
         indices_sentences = next(generator)
-        #predictions = ae_model.predict(indices_sentences[0])
-        #print(predictions)
-        ae_model.fit_generator(generator, 
+        # predictions = ae_model.predict(indices_sentences[0])
+        # print(predictions)
+        ae_model.fit_generator(generator,
                                steps_per_epoch=steps_per_epoch,
-                               epochs=epochs_in, 
-                               callbacks=callbacks, 
-                               validation_data = valIndices)    
+                               epochs=epochs_in,
+                               callbacks=callbacks,
+                               validation_data=valIndices)    
         
         # FIXME: noise in the latent rep
-        if epoch%latentTestRate == 0:
+        if epoch % latentTestRate == 0:
             softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
 
             first_softmax_evolution.append(softmaxes[0][0])
             second_softmax_evolution.append(softmaxes[0][1])
             third_softmax_evolution.append(softmaxes[0][2])
-            
 
     softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
 
@@ -203,9 +185,105 @@ def main(categorical_TF=True):
     print(grammar)
 
 
+def simpler_main(categorical_TF=True):
 
+    # create experiment folder to save the results
+    experiment_path = make_directories()
+    
+    # write everythin in a file
+    # sys.stdout = open(experiment_path + 'training.txt', 'w')
+
+    # dataset to be learned
+    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
+    generator = generator_class.generator()
+
+    vocabSize = generator_class.vocabSize    
+
+    ################################################################################
+    # Define the main model, the autoencoder
+    ################################################################################
+
+    embedding = Embedding(vocabSize, embDim)
+    lstm = LSTM(vocabSize, return_sequences=True)
+    
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    embed = embedding(input_question)
+    lstm_output = lstm(embed)
+    softmax = TimeDistributed(Activation('softmax'))(lstm_output)
+
+    optimizer = optimizers.Adam(lr=.01)  # , clipnorm=1.
+    
+    ae_model = Model(inputs=input_question, outputs=softmax)
+    ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['acc'])
+    
+    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,
+                              write_graph=True, write_images=True, write_grads=True)
+    tensorboard.set_model(ae_model)
+    callbacks = [tensorboard]  #  [] # 
+    
+    ################################################################################
+    # Train and test
+    ################################################################################
+    
+    valIndices = next(generator)
+    print("""
+          fit ae
+          
+          """)
+    before_predictions = ae_model.predict(valIndices[0])
+    
+    ae_model.fit_generator(generator, 
+                           steps_per_epoch=steps_per_epoch,
+                           epochs=epochs_in, 
+                           callbacks=callbacks, 
+                           validation_data = valIndices)    
+     
+    prediction = ae_model.predict(valIndices[0]) 
+    
+
+    print('\n\n\n')
+    
+    print('before:')
+    batch_indices = np.argmax(before_predictions, axis=2)
+    sentences_reconstructed = generator_class.indicesToSentences(batch_indices)
+    print(sentences_reconstructed)
+    print('after:')    
+    batch_indices = np.argmax(prediction, axis=2)
+    sentences_reconstructed = generator_class.indicesToSentences(batch_indices)
+    print(sentences_reconstructed)
+
+    
+    ################################################################################
+    # Define the main model, the autoencoder
+    ################################################################################
+    
+    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+                                   embDim = embDim,
+                                   latDim = latDim,
+                                   max_senLen = max_senLen,
+                                   output_type = 'both',
+                                   embedding = embedding,
+                                   rnn = lstm)
+
+
+    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    discrete_output = DAriA_dcd.decode(decoder_input)
+    decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
+    
+    noise = np.random.rand(batchSize, latDim)
+    indicess, _ = decoder_model.predict(noise)
+    print('DAriA generated:')
+    sentences_generated = generator_class.indicesToSentences(indicess)
+    print(sentences_generated)
+    print('')
+    print(generator_class.vocabulary.indicesByTokens)
+    print('')
+    print(grammar)
+    
     
 
     
 if __name__ == '__main__':
-    main()
+    # main()
+    #toy()
+    simpler_main()
