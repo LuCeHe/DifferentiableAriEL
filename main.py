@@ -67,11 +67,11 @@ max_senLen = 4
 batchSize = 128
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
-latDim = 5
+latDim = 16
 embDim = 5
 
 epochs = 1
-steps_per_epoch = 400
+steps_per_epoch = 1000
 epochs_in = 1
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
@@ -291,5 +291,5 @@ def simpler_main(categorical_TF=True):
 
     
 if __name__ == '__main__':
-    #main()
-    simpler_main()
+    main()
+    #simpler_main()
