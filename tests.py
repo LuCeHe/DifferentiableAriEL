@@ -32,7 +32,7 @@
 
 
 import numpy as np
-from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
+from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
@@ -147,7 +147,7 @@ def test_vAriEL_Decoder_model():
     questions, points = random_sequences_and_points()
     
     # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize = vocabSize, 
+    model = DAriEL_Decoder_model(vocabSize = vocabSize, 
                                  embDim = embDim, 
                                  latDim = latDim, 
                                  max_senLen = max_senLen, 
@@ -675,7 +675,7 @@ def test_DAriA_Decoder_wasserstein():
 
 
 if __name__ == '__main__':
-    #test_vAriEL_Decoder_model()
+    test_vAriEL_Decoder_model()
     print('=========================================================================================')
     #test_vAriEL_Encoder_model()
     print('=========================================================================================')    
@@ -693,4 +693,4 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_vAriEL_dcd_CCE()
     #test_new_Decoder()
-    test_vAriEL_onMNIST()
+    #test_vAriEL_onMNIST()

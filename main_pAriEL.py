@@ -10,7 +10,7 @@ import sys
 
 import numpy as np
 from nltk import CFG
-from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
+from vAriEL import DAriEL
 from sentenceGenerators import c2n_generator, next_character_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
@@ -84,10 +84,9 @@ def even_simpler_main(categorical_TF=True):
     embed = embedding(input_question)
     lstm_output = lstm(embed)
     softmax = Dense(vocabSize, activation='softmax')(lstm_output)
-
-    optimizer = optimizers.Adam(lr=.001)  # , clipnorm=1.
-    
     ae_model = Model(inputs=input_question, outputs=softmax)
+
+    optimizer = optimizers.Adam(lr=.001)  # , clipnorm=1.    
     ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['acc'])
     
     tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,
@@ -153,23 +152,51 @@ def even_simpler_main(categorical_TF=True):
     print(grammar)
     print(ae_model.predict([0]))
     
+    
+    
     ################################################################################
     # Define the main model, the autoencoder
     ################################################################################
     
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
+    language_model = ae_model
+    DAriA_dcd = DAriEL(vocabSize = vocabSize,
                                    embDim = embDim,
                                    latDim = latDim,
                                    max_senLen = max_senLen,
                                    output_type = 'both',
-                                   embedding = embedding,
-                                   rnn = lstm,
+                                   language_model = language_model,
                                    startId = generator_class.startId)
 
 
     decoder_input = Input(shape=(latDim,), name='decoder_input')
     discrete_output = DAriA_dcd.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
+    
+    
+    noise = np.random.rand(batchSize, latDim)
+    indicess, _ = decoder_model.predict(noise)
+    sentences_generated = generator_class.indicesToSentences(indicess)
+    
+    ################################################################################
+    # Subjective evaluation of the quality of the sentences
+    ################################################################################
+    
+    from prettytable import PrettyTable
+
+    table = PrettyTable(['input', 'output', 'reconstruction LM before training', 'reconstruction LM after training', 'DAriA generated with that LM'])
+    for i,o, b, a, g in zip(input_sentence, output_sentence, sentences_reconstructed_before, sentences_reconstructed_after, sentences_generated):
+        table.add_row([i, o, b, a, g])
+    for column in table.field_names:        
+        table.align[column] = "l"
+    print(table)
+    print('')
+    print('number unique generated sentences:  %s / %s (it should be only 3 / %s)'%(len(set(sentences_generated)), batchSize, batchSize))
+    print('')
+    print(generator_class.vocabulary.indicesByTokens)
+    print('')
+    print(grammar)
+    print(ae_model.predict([0]))
+
 
     
 if __name__ == '__main__':

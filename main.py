@@ -46,7 +46,7 @@ import sys
 
 import numpy as np
 from nltk import CFG
-from vAriEL import vAriEL_Encoder_model, vAriEL_Decoder_model, Differential_AriEL
+from vAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, DAriEL
 from sentenceGenerators import c2n_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
@@ -106,7 +106,7 @@ def main(categorical_TF=True):
     # Define the main model, the autoencoder
     ################################################################################
     
-    DAriA_dcd = Differential_AriEL(vocabSize=vocabSize,
+    DAriA_dcd = DAriEL(vocabSize=vocabSize,
                                    embDim=embDim,
                                    latDim=latDim,
                                    max_senLen=max_senLen,
