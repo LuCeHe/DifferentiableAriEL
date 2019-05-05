@@ -78,8 +78,12 @@ class vAriEL_Encoder_Layer(object):
                              embedding=embedding,
                              startId=startId)
         
-        
+         
         # if the input is a rnn, use that, otherwise use an LSTM
+        self.isModelFromOutside = True
+        if self.rnn == None and self.embedding == None:
+            self.isModelFromOutside = False
+            
         if self.rnn == None:
             self.rnn = LSTM(vocabSize, return_sequences=True)
         if self.embedding == None:
@@ -93,12 +97,15 @@ class vAriEL_Encoder_Layer(object):
     def __call__(self, input_questions):
         #input_questions = Input(shape=(None,), name='question')
         
+        
+        #if not self.isModelFromOutside:
         startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.startId)})(input_questions)
         startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
         
-
-        concatenation = Concatenate(axis=1)([startId_layer, input_questions])
-        embed = self.embedding(concatenation)
+    
+        input_questions = Concatenate(axis=1)([startId_layer, input_questions])
+            
+        embed = self.embedding(input_questions)
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
@@ -208,14 +215,13 @@ def vAriEL_Decoder_model(vocabSize = 101,
                          embDim = 2, 
                          latDim = 4, 
                          max_senLen = 10, 
-                         rnn=None, 
-                         embedding=None,
+                         language_model=None,
                          startId=None, 
                          output_type='both'):  
     
     layer = vAriEL_Decoder_Layer(vocabSize = vocabSize, embDim = embDim, 
                                  latDim = latDim, max_senLen = max_senLen, 
-                                 rnn=rnn, embedding=embedding, startId=startId, 
+                                 language_model=language_model, startId=startId, 
                                  output_type=output_type)
     input_point = Input(shape=(latDim,), name='input_point')
     output = layer(input_point)    
@@ -240,14 +246,14 @@ class vAriEL_Decoder_Layer(object):
                              embDim=embDim, 
                              latDim=latDim, 
                              max_senLen=max_senLen,
-                             rnn=rnn, 
-                             embedding=embedding, 
+                             language_model=language_model, 
                              startId=startId,
                              output_type=output_type)
         
         # if the input is a rnn, use that, otherwise use an LSTM
         print('On passe par ici')
-        if self.rnn == None:
+        if self.language_model == None:
+            
             print('Et par ici')
             self.rnn = LSTM(vocabSize, return_sequences=True)
         if self.embedding == None:

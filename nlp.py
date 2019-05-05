@@ -175,8 +175,11 @@ def addEndTokenToGrammar(grammar, endToken):
 
 
 class Vocabulary(object):
-
+    
+    startToken = '<START>'
     endToken = '<END>'
+    padToken = '<PAD>'
+    unkToken = '<UNK>'
 
     def __init__(self, tokens):
 

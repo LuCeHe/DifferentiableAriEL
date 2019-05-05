@@ -31,6 +31,17 @@
 
 # learn language in the AE
 
+
+
+"""
+
+- instead of feeding embedding/lstm/TimeDistributed from outside, just feed anymodel discrete -> softmax
+- so I can plug in more complex models
+
+"""
+
+
+
 import sys
 
 import numpy as np
@@ -62,17 +73,18 @@ grammar = CFG.fromstring("""
                          S -> 'ABC' | 'AAC' | 'BA'
                          """)
 
+
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 4
+max_senLen = 6
 batchSize = 128
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
 latDim = 16
 embDim = 5
 
-epochs = 1
+epochs = 2
 steps_per_epoch = 1000
-epochs_in = 1
+epochs_in = 3
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
@@ -238,7 +250,7 @@ def simpler_main(categorical_TF=True):
                            epochs=epochs_in, 
                            callbacks=callbacks, 
                            validation_data = valIndices)    
-     
+    
     prediction = ae_model.predict(valIndices[0]) 
     
 
@@ -247,6 +259,8 @@ def simpler_main(categorical_TF=True):
     sentences_reconstructed_before = generator_class.indicesToSentences(batch_indices)
     batch_indices = np.argmax(prediction, axis=2)
     sentences_reconstructed_after = generator_class.indicesToSentences(batch_indices)
+    input_sentence = generator_class.indicesToSentences(valIndices[0])
+    output_sentence = generator_class.indicesToSentences(np.argmax(valIndices[1], axis=2))
 
     
     ################################################################################
@@ -274,9 +288,9 @@ def simpler_main(categorical_TF=True):
     
     from prettytable import PrettyTable
 
-    table = PrettyTable(['reconstruction LM before training', 'reconstruction LM after training', 'DAriA generated with that LM'])
-    for b, a, g in zip(sentences_reconstructed_before, sentences_reconstructed_after, sentences_generated):
-        table.add_row([b, a, g])
+    table = PrettyTable(['input', 'output', 'reconstruction LM before training', 'reconstruction LM after training', 'DAriA generated with that LM'])
+    for i,o, b, a, g in zip(input_sentence, output_sentence, sentences_reconstructed_before, sentences_reconstructed_after, sentences_generated):
+        table.add_row([i, o, b, a, g])
     for column in table.field_names:        
         table.align[column] = "l"
     print(table)
@@ -286,10 +300,103 @@ def simpler_main(categorical_TF=True):
     print(generator_class.vocabulary.indicesByTokens)
     print('')
     print(grammar)
+    print(ae_model.predict([0]))
     
+
+
+
+def even_simpler_main(categorical_TF=True):
+
+    # create experiment folder to save the results
+    experiment_path = make_directories()
+    
+    # write everythin in a file
+    # sys.stdout = open(experiment_path + 'training.txt', 'w')
+
+    # dataset to be learned
+    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
+    generator = generator_class.generator()
+
+    vocabSize = generator_class.vocabSize    
+
+    ################################################################################
+    # Define the main model, the autoencoder
+    ################################################################################
+
+    embedding = Embedding(vocabSize, embDim)
+    lstm = LSTM(128, return_sequences=True)
+    
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    embed = embedding(input_question)
+    lstm_output = lstm(embed)
+    softmax = TimeDistributed(Dense(vocabSize, activation='softmax'))(lstm_output)
+
+    optimizer = optimizers.Adam(lr=.001)  # , clipnorm=1.
+    
+    ae_model = Model(inputs=input_question, outputs=softmax)
+    ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['acc'])
+    
+    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,
+                              write_graph=True, write_images=True, write_grads=True)
+    tensorboard.set_model(ae_model)
+    callbacks = [tensorboard]  #  [] # 
+    
+    ################################################################################
+    # Train and test
+    ################################################################################
+    
+    valIndices = next(generator)
+    print("""
+          fit ae
+          
+          """)
+    before_predictions = ae_model.predict(valIndices[0])
+    
+    import os
+    if not os.path.isfile('model.h5'):
+        ae_model.fit_generator(generator, 
+                               steps_per_epoch=steps_per_epoch,
+                               epochs=epochs_in, 
+                               callbacks=callbacks, 
+                               validation_data = valIndices)
+        ae_model.save('model.h5')
+    else:
+        from keras.models import load_model
+        ae_model = load_model('model.h5')
+            
+    
+    prediction = ae_model.predict(valIndices[0]) 
+    
+
+    print('\n\n\n')
+    batch_indices = np.argmax(before_predictions, axis=2)
+    sentences_reconstructed_before = generator_class.indicesToSentences(batch_indices)
+    batch_indices = np.argmax(prediction, axis=2)
+    sentences_reconstructed_after = generator_class.indicesToSentences(batch_indices)
+    input_sentence = generator_class.indicesToSentences(valIndices[0])
+    output_sentence = generator_class.indicesToSentences(np.argmax(valIndices[1], axis=2))
+
+    
+    
+    
+    from prettytable import PrettyTable
+
+    table = PrettyTable(['input', 'output', 'reconstruction LM before training', 'reconstruction LM after training'])
+    for i,o, b, a in zip(input_sentence, output_sentence, sentences_reconstructed_before, sentences_reconstructed_after):
+        table.add_row([i, o, b, a])
+    for column in table.field_names:        
+        table.align[column] = "l"
+    print(table)
+    print('')
+    print('')
+    print(generator_class.vocabulary.indicesByTokens)
+    print('')
+    print(grammar)
+    print(ae_model.predict([0]))
     
 
     
 if __name__ == '__main__':
-    main()
+    #main()
     #simpler_main()
+    even_simpler_main()
