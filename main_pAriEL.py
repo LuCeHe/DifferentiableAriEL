@@ -10,7 +10,7 @@ import sys
 
 import numpy as np
 from nltk import CFG
-from vAriEL import DAriEL
+from DAriEL import Differentiable_AriEL
 from sentenceGenerators import c2n_generator, next_character_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
@@ -49,9 +49,9 @@ batchSize = 128
 latDim = 16
 embDim = 5
 
-epochs = 2
-steps_per_epoch = 1000
-epochs_in = 3
+epochs = 1
+steps_per_epoch = 100
+epochs_in = 2
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
@@ -159,17 +159,17 @@ def even_simpler_main(categorical_TF=True):
     ################################################################################
     
     language_model = ae_model
-    DAriA_dcd = DAriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'both',
-                                   language_model = language_model,
-                                   startId = generator_class.startId)
+    DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
+                                  embDim = embDim,
+                                  latDim = latDim,
+                                  max_senLen = max_senLen,
+                                  output_type = 'both',
+                                  language_model = language_model,
+                                  startId = generator_class.startId)
 
 
     decoder_input = Input(shape=(latDim,), name='decoder_input')
-    discrete_output = DAriA_dcd.decode(decoder_input)
+    discrete_output = DAriEL.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
     
     

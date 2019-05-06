@@ -77,7 +77,7 @@ def random_sequences_and_points(repeated=False, vocabSize=vocabSize):
     padded_questions = pad_sequences(questions)
     #print(questions)
     print('')
-    print('padded quesitons')
+    print('padded questions')
     print(padded_questions)
     print('')
     print('points')
@@ -88,7 +88,7 @@ def random_sequences_and_points(repeated=False, vocabSize=vocabSize):
     return padded_questions, points
 
 
-def test_vAriEL_Encoder_model():
+def test_DAriEL_Encoder_model():
     
     # CHECKED
     # 1. random numpy arrays pass through the encoder succesfully
@@ -104,12 +104,16 @@ def test_vAriEL_Encoder_model():
     questions, points = random_sequences_and_points()
     
     # vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Encoder_model(vocabSize = vocabSize, embDim = embDim, latDim = latDim)
+    model = DAriEL_Encoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim,
+                                 max_senLen = max_senLen, 
+                                 startId = 0)
     #print(partialModel.predict(question)[0])
     for layer in model.predict(questions):
-        #print(layer.shape)
-        assert layer.shape[0] == latDim
-        #print('')
+        print(layer)
+        #assert layer.shape[0] == latDim
+        print('')
         #print('')
 
     print("""
@@ -132,7 +136,7 @@ def test_vAriEL_Encoder_model():
     model.compile(loss='mean_squared_error', optimizer='sgd')
     model.fit(questions, points)    
         
-def test_vAriEL_Decoder_model():
+def test_DAriEL_Decoder_model():
     
     # CHECKED
     # 1. random numpy arrays pass through the encoder succesfully
@@ -151,9 +155,12 @@ def test_vAriEL_Decoder_model():
                                  embDim = embDim, 
                                  latDim = latDim, 
                                  max_senLen = max_senLen, 
+                                 startId = 0,
                                  output_type='tokens')
     
     prediction = model.predict(points)
+
+    print(prediction)    
     
     # The batch size of predicted tokens should contain different sequences of tokens
     assert np.any(prediction[0] != prediction[1])
@@ -251,7 +258,7 @@ def test_vAriEL_AE_cdc_model():
           
           """)        
 
-    DAriA_cdc = Differential_AriEL(vocabSize = vocabSize,
+    DAriA_cdc = Differentiable_AriEL(vocabSize = vocabSize,
                                    embDim = embDim,
                                    latDim = latDim,
                                    max_senLen = max_senLen,
@@ -489,11 +496,12 @@ def test_DAriA_Decoder_cross_entropy():
     #                             output_type='softmaxes')
 
     # 2. does this work?    
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'softmaxes')
+    DAriA_dcd = Differentiable_AriEL(vocabSize = vocabSize,
+                                     embDim = embDim,
+                                     latDim = latDim,
+                                     max_senLen = max_senLen,
+                                     startId = 0,
+                                     output_type = 'softmaxes')
 
 
     input_point = Input(shape=(latDim,), name='input_point')
@@ -675,9 +683,9 @@ def test_DAriA_Decoder_wasserstein():
 
 
 if __name__ == '__main__':
-    test_vAriEL_Decoder_model()
+    #test_DAriEL_Decoder_model()   # works for DAriEL v2
     print('=========================================================================================')
-    #test_vAriEL_Encoder_model()
+    #test_DAriEL_Encoder_model()   # works for DAriEL v2
     print('=========================================================================================')    
     #test_vAriEL_AE_dcd_model()
     print('=========================================================================================')    
@@ -689,7 +697,7 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
     print('=========================================================================================')    
-    #test_DAriA_Decoder_cross_entropy()
+    test_DAriA_Decoder_cross_entropy()
     print('=========================================================================================')    
     #test_vAriEL_dcd_CCE()
     #test_new_Decoder()

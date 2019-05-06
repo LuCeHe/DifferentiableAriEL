@@ -58,21 +58,41 @@ def dynamic_one_hot(x, d, pos):
     one_hots = tf.ones(tf.stack([batch_size, 1, d])) * tf.one_hot(pos, d)
     return one_hots
 
+class ExpandDims(object):
+    def __init__(self, axis):
+        self.axis = axis
+        
+    def __call__(self, inputs):
+        def ed(tensor, axis):
+            expanded = K.expand_dims(tensor, axis=axis)
+            return expanded
+        
+        return Lambda(ed, arguments={'axis': self.axis})(inputs)
+
+class Slice(object):
+    # axis parameter is not functional
+    def __init__(self, axis, initial, final):
+        self.axis, self.initial, self.final = axis, initial, final
+        
+    def __call__(self, inputs):
+        return Lambda(slice_from_to, arguments={'initial': self.initial, 'final': self.final})(inputs)
 
 def slice_(x):
     return x[:, :-1, :]
 
+def slice_from_to(x, initial, final):
+    return x[:, initial:final]
 
-def vAriEL_Encoder_model(vocabSize = 101, 
+def DAriEL_Encoder_model(vocabSize = 101, 
                          embDim = 2, 
                          latDim = 4, 
-                         rnn = None, 
-                         embedding = None,
+                         language_model = None,
+                         max_senLen = 6, 
                          startId = None):      
     
     layer = DAriEL_Encoder_Layer(vocabSize = vocabSize, embDim = embDim, 
-                                 latDim = latDim, rnn = rnn, embedding = embedding,
-                                 startId = startId)        
+                                 latDim = latDim, language_model = language_model,
+                                 max_senLen = max_senLen, startId = startId)        
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -86,15 +106,16 @@ class DAriEL_Encoder_Layer(object):
                  embDim=2,
                  latDim=4,
                  language_model=None,
+                 max_senLen = 6, 
                  startId=None):  
+
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
                              latDim=latDim,
-                             language_model=language_model,
+                             language_model=language_model, 
+                             max_senLen = max_senLen, 
                              startId=startId)
-         
-        # if the input is a rnn, use that, otherwise use an LSTM
-            
+        
         if self.language_model == None:
             
             embedding = Embedding(vocabSize, embDim, mask_zero='True')
@@ -107,38 +128,33 @@ class DAriEL_Encoder_Layer(object):
             self.language_model = Model(inputs=input_question, outputs=softmax)            
             
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
+        if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
             
         
     def __call__(self, input_questions):
-        # FIXME: I think arguments passed this way won't be saved with the model
-        # follow instead: https://github.com/keras-team/keras/issues/1879
-        # RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(embed)
-        # RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(embed)
-        
+                
         startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.startId)})(input_questions)
         startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
     
-        input_questions = Concatenate(axis=1)([startId_layer, input_questions])
             
-    
-        # a zero vector is concatenated as the first word embedding 
-        # to start running the RNN that will follow
-        # concatenation = Concatenate(axis=1)([RNN_starter, embed])
+        softmax = self.language_model(startId_layer)
         
-        softmax = self.language_model(input_questions)
+        expanded_os = ExpandDims(1)(softmax)
+        final_softmaxes = expanded_os
         
-        # this gradients don't work, FIXME!
-        # the Embedding brings probs
-        # grad = tf.gradients(xs=input_questions, ys=rnn_output)
-        # print('grad (xs=input_questions, ys=rnn_output):   ', grad)            
-        # grad = tf.gradients(xs=input_questions, ys=embed)
-        # print('grad (xs=input_questions, ys=embed):        ', grad)            
-        # grad = tf.gradients(xs=input_questions, ys=softmax)
-        # print('grad (xs=input_questions, ys=softmax):      ', grad)            
-        # grad = tf.gradients(xs=concatenation, ys=softmax)
-        # print('grad (xs=concatenation, ys=softmax):      ', grad)           # YES!!  
-    
-        point = probsToPoint(self.vocabSize, self.latDim)([softmax, input_questions])
+        question_segments = []
+        for final in range(self.max_senLen):  
+            partial_question = Slice(1, 0, final+1)(input_questions)   
+            question_segments.append(partial_question)
+            softmax = self.language_model(partial_question)
+            expanded_os = ExpandDims(1)(softmax)
+            final_softmaxes = Concatenate(axis=1)([final_softmaxes, expanded_os])
+            
+        final_softmaxes = Lambda(slice_)(final_softmaxes)
+        print('final_softmaxes:   ', K.int_shape(final_softmaxes))
+        
+        point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
+        
         return point
 
 
@@ -160,7 +176,7 @@ class probsToPoint(object):
             
             # for the matrix multiplications that follow we are not going to 
             # use the output of the LSTM after the last token has passed
-            listProbs = listProbs[:, :-1, :]
+            #listProbs = listProbs[:, :-1, :]
             
             cumsums = tf.cumsum(listProbs, axis=2, exclusive=True)
             # for p_ij, c_ij, token_i in zip(listProbs, cumsums, listTokens):
@@ -196,7 +212,7 @@ class probsToPoint(object):
 
             return point
                 
-        pointLatentDim = Lambda(downTheTree)([softmax, input_questions])
+        pointLatentDim = Lambda(downTheTree, name='downTheTree')([softmax, input_questions])
         return pointLatentDim
 
 
@@ -213,8 +229,8 @@ def DAriEL_Decoder_model(vocabSize = 101,
                                  language_model=language_model, startId=startId, 
                                  output_type=output_type)
     input_point = Input(shape=(latDim,), name='input_point')
-    output = layer(input_point)    
-    model = Model(inputs=input_point, outputs=output)
+    discrete_sequence_output = layer(input_point)    
+    model = Model(inputs=input_point, outputs=discrete_sequence_output)
     return model
 
 class DAriEL_Decoder_Layer(object):
@@ -269,6 +285,8 @@ class DAriEL_Decoder_Layer(object):
         return output
 
 
+
+
 class pointToProbs(object):
 
     def __init__(self,
@@ -293,7 +311,9 @@ class pointToProbs(object):
         input_point = inputs
         
         startId_layer = Lambda(dynamic_fill, arguments={'d': self.max_senLen, 'value': float(self.startId)})(input_point)
-        # startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        
+        
         initial_softmax = self.language_model(startId_layer)    
         one_softmax = initial_softmax
         
@@ -308,27 +328,30 @@ class pointToProbs(object):
         
         unfolding_point = clipped_layer
         
-        final_softmaxes = one_softmax
+        expanded_os = ExpandDims(1)(one_softmax)
+        final_softmaxes = expanded_os
         final_tokens = None  # startId_layer
         curDim = 0
 
         def create_new_token(inputs):
             
             one_softmax, unfolding_point = inputs
+            one_softmax = K.expand_dims(one_softmax, axis=1)
+            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
             
             cumsum = K.cumsum(one_softmax, axis=2)
             cumsum = K.squeeze(cumsum, axis=1)
-            cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
+            cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive = True)
             cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
             
-            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocabSize, 1)                
+
+            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]]*self.vocabSize, 1)                
             
             # determine the token selected (2 steps: xor and token)
             # differentiable xor (instead of tf.logical_xor)                
             c_minus_v = tf.subtract(cumsum, value_of_interest)
             ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-            signed_xor = c_minus_v * ce_minus_c
+            signed_xor = c_minus_v*ce_minus_c
             abs_sx = tf.abs(signed_xor)
             almost_xor = tf.divide(signed_xor, abs_sx)
             almost_xor = tf.add(almost_xor, -1)
@@ -336,7 +359,7 @@ class pointToProbs(object):
             
             # differentiable argmax (instead of tf.argmax)                
             almost_token = tf.divide(c_minus_v, tf.abs(c_minus_v))
-            almost_token = tf.abs(tf.divide(tf.add(almost_token, -1), -2))
+            almost_token = tf.abs(tf.divide(tf.add(almost_token, -1),-2))
             token = tf.reduce_sum(almost_token, axis=1)
             token = tf.expand_dims(token, axis=1)
             
@@ -352,7 +375,7 @@ class pointToProbs(object):
             one_hots = dynamic_one_hot(one_softmax, self.latDim, curDim)
             one_hots = tf.squeeze(one_hots, axis=1)
             
-            c_iti = c_iti_value * one_hots
+            c_iti = c_iti_value*one_hots
             unfolding_point = tf.subtract(unfolding_point, c_iti)
             
             # the p_iti value has to be divided to the point for the next
@@ -361,22 +384,25 @@ class pointToProbs(object):
             one_hots = tf.squeeze(one_hots, axis=1)
             p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
             p_iti_value = K.squeeze(p_iti_value, axis=1)
-            p_iti_and_zeros = p_iti_value * one_hots
+            p_iti_and_zeros = p_iti_value*one_hots
             ones = dynamic_ones(one_softmax, self.latDim)
             ones = K.squeeze(ones, axis=1)
             p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
             p_iti = tf.subtract(p_iti_plus_ones, one_hots)
             
-            unfolding_point = tf.divide(unfolding_point, p_iti)
+            unfolding_point = tf.divide(unfolding_point, p_iti)            
             
             return [token, unfolding_point]
+        
         
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
         # is maxLen
-        for _ in range(self.max_senLen):                
+        for tree_node in range(self.max_senLen):                
                 
-            token, unfolding_point = Lambda(create_new_token)([one_softmax, unfolding_point])
+            token, unfolding_point = Lambda(create_new_token, name='create_token_%s'%(tree_node))([one_softmax, unfolding_point])
+            #output = Lambda(create_new_token)([one_softmax, unfolding_point])
+            
             
             if final_tokens == None:
                 final_tokens = token
@@ -389,17 +415,21 @@ class pointToProbs(object):
             
             # get the softmax for the next iteration
             one_softmax = self.language_model(tokens)
-            
-            final_softmaxes = Concatenate(axis=1)([final_softmaxes, one_softmax])
+
+            expanded_os = ExpandDims(1)(one_softmax)
+            final_softmaxes = Concatenate(axis=1)([final_softmaxes, expanded_os])
             
             # NOTE: at each iteration, change the dimension
             curDim += 1
             if curDim >= self.latDim:
                 curDim = 0
+            
+        
         
         # remove last softmax, since the initial was given by the an initial
         # zero vector
         softmaxes = Lambda(slice_)(final_softmaxes)
+        #softmaxes = final_softmaxes
         tokens = final_tokens
 
         # FIXME: give two options: the model giving back the whol softmaxes
@@ -414,7 +444,10 @@ class pointToProbs(object):
         else:
             raise ValueError('the output_type specified is not implemented!')
         
-        return output
+        
+        return tokens
+
+
 
 
 class Differentiable_AriEL(object):
