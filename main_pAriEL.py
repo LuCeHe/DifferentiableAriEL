@@ -52,7 +52,7 @@ grammar = CFG.fromstring("""
                          """)
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 13
+max_senLen = 23
 batchSize = 128
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
@@ -60,8 +60,8 @@ latDim = 16
 embDim = 5
 
 epochs = 1
-steps_per_epoch = 100
-epochs_in = 0
+steps_per_epoch = 1000
+epochs_in = 3
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
