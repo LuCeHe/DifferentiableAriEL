@@ -10,7 +10,7 @@ import sys
 
 import numpy as np
 from nltk import CFG
-from DAriEL import Differentiable_AriEL
+from DAriEL import Differentiable_AriEL, predefined_model
 from sentenceGenerators import c2n_generator, next_character_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
@@ -51,7 +51,7 @@ embDim = 5
 
 epochs = 1
 steps_per_epoch = 100
-epochs_in = 2
+epochs_in = 0
 latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
@@ -77,22 +77,12 @@ def main(categorical_TF=True):
     # Define the main model, next token prediction
     ################################################################################
 
-    embedding = Embedding(vocabSize, embDim, mask_zero='True')
-    lstm = LSTM(128, return_sequences=False)
-    
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    embed = embedding(input_question)
-    lstm_output = lstm(embed)
-    softmax = Dense(vocabSize, activation='softmax')(lstm_output)
-    ae_model = Model(inputs=input_question, outputs=softmax)
+    ae_model = predefined_model(vocabSize, embDim)
 
     optimizer = optimizers.Adam(lr=.001)  # , clipnorm=1.    
     ae_model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['acc'])
+    callbacks = []
     
-    tensorboard = TensorBoard(log_dir='./' + experiment_path + 'log', histogram_freq=latentTestRate,
-                              write_graph=True, write_images=True, write_grads=True)
-    tensorboard.set_model(ae_model)
-    callbacks = [tensorboard]  #  [] # 
     
     ################################################################################
     # Train and test
@@ -158,14 +148,13 @@ def main(categorical_TF=True):
     # Define the main model, the autoencoder
     ################################################################################
     
-    #language_model = ae_model
     DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
                                   embDim = embDim,
                                   latDim = latDim,
                                   max_senLen = max_senLen,
                                   output_type = 'both',
                                   language_model = ae_model,
-                                  startId = generator_class.startId)
+                                  startId = 0)
 
 
     decoder_input = Input(shape=(latDim,), name='decoder_input')

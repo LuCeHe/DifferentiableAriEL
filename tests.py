@@ -688,12 +688,49 @@ def test_DAriEL_model_from_outside():
                                  max_senLen = max_senLen, 
                                  startId = 0,
                                  language_model = LM,
-                                 output_type='tokens')
+                                 output_type='both')
     
     prediction = model.predict(points)
-
+    
     print(prediction)
-   
+
+
+
+def test_DAriEL_model_from_outside_v2():
+    
+    print("""
+          Test Decoding
+          
+          """)
+
+    questions, points = random_sequences_and_points()
+    answers = to_categorical(questions[:,1], vocabSize)
+    
+    LM = predefined_model(vocabSize, embDim)    
+    LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
+    
+    LM.fit(questions, answers, epochs=100)    
+
+
+    DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
+                                  embDim = embDim,
+                                  latDim = latDim,
+                                  max_senLen = max_senLen,
+                                  output_type = 'both',
+                                  language_model = LM,
+                                  startId = 0)
+
+
+    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    discrete_output = DAriEL.decode(decoder_input)
+    decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
+    
+    noise = np.random.rand(batchSize, latDim)
+    indicess, _ = decoder_model.predict(noise)
+
+    print(indicess)
+    
+
 def test_DAriA_Decoder_wasserstein():
     """
     https://arxiv.org/pdf/1701.07875.pdf
@@ -726,4 +763,5 @@ if __name__ == '__main__':
     #test_new_Decoder()
     #test_vAriEL_onMNIST()
     print('=========================================================================================')    
-    test_DAriEL_model_from_outside()
+    #test_DAriEL_model_from_outside()       # works for DAriEL v2
+    test_DAriEL_model_from_outside_v2()
