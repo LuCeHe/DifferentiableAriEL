@@ -42,11 +42,12 @@
 
 
 
-import sys
 
 import numpy as np
+from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL,\
+    predefined_model
+
 from nltk import CFG
-from vAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, DAriEL
 from sentenceGenerators import c2n_generator
 from keras.models import Model
 from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
@@ -55,6 +56,9 @@ from keras import optimizers
 from keras.callbacks import TensorBoard
 from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
                   TestActiveGaussianNoise, SelfAdjustingGaussianNoise
+
+from keras.utils.np_utils import to_categorical
+from DifferentiableAriEL.tests import random_sequences_and_points
 
 # grammar cannot have recursion!
 grammar = CFG.fromstring("""
@@ -395,8 +399,43 @@ def even_simpler_main(categorical_TF=True):
     print(ae_model.predict([0]))
     
 
+def test_DAriEL_model_from_outside_v2():
+    
+    print("""
+          Test Decoding
+          
+          """)
+
+    questions, points = random_sequences_and_points()
+    answers = to_categorical(questions[:,1], vocabSize)
+    print(answers)
+    LM = predefined_model(vocabSize, embDim)    
+    LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
+    
+    LM.fit(questions, answers, epochs=10)    
+
+    DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
+                                  embDim = embDim,
+                                  latDim = latDim,
+                                  max_senLen = max_senLen,
+                                  output_type = 'both',
+                                  language_model = LM,
+                                  startId = 0)
+
+
+    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    discrete_output = DAriEL.decode(decoder_input)
+    decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
+    
+    noise = np.random.rand(batchSize, latDim)
+    indicess, _ = decoder_model.predict(noise)
+
+    print(indicess)
+    
+
     
 if __name__ == '__main__':
     #main()
     #simpler_main()
-    even_simpler_main()
+    #even_simpler_main()
+    test_DAriEL_model_from_outside_v2()

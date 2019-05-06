@@ -711,7 +711,6 @@ def test_DAriEL_model_from_outside_v2():
     
     LM.fit(questions, answers, epochs=100)    
 
-
     DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
                                   embDim = embDim,
                                   latDim = latDim,

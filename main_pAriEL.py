@@ -6,19 +6,29 @@
 """
 
 
-import sys
-
-import numpy as np
-from nltk import CFG
 from DAriEL import Differentiable_AriEL, predefined_model
+from nltk import CFG
 from sentenceGenerators import c2n_generator, next_character_generator
-from keras.models import Model
-from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
-                         GaussianNoise, Activation
 from keras import optimizers
 from keras.callbacks import TensorBoard
 from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
                   TestActiveGaussianNoise, SelfAdjustingGaussianNoise
+from tests import random_sequences_and_points
+
+
+
+
+import numpy as np
+from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential, Model
+from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
+                         Bidirectional, LSTM, Lambda, TimeDistributed, \
+                         RepeatVector, Activation, GaussianNoise, Flatten, \
+                         Reshape
+                         
+from keras.utils import to_categorical
+import tensorflow as tf
+from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 
 
@@ -42,7 +52,7 @@ grammar = CFG.fromstring("""
                          """)
 
 vocabSize = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = None
+max_senLen = 13
 batchSize = 128
 # FIXME:
 # latDim = 7, embDim = 5 seems to explode with gaussian noise
@@ -186,7 +196,13 @@ def main(categorical_TF=True):
     print(grammar)
     print(ae_model.predict([0]))
 
+    
 
     
 if __name__ == '__main__':
     main()
+    
+    
+    
+    
+    
