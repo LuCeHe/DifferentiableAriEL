@@ -32,7 +32,8 @@
 
 
 import numpy as np
-from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL
+from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL,\
+    predefined_model
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, Model
 from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
@@ -191,7 +192,7 @@ def test_DAriEL_Decoder_model():
     
         
         
-def test_vAriEL_AE_dcd_model():
+def test_DAriEL_AE_dcd_model():
     
     questions, _ = random_sequences_and_points()
     
@@ -201,11 +202,12 @@ def test_vAriEL_AE_dcd_model():
           
           """)        
 
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'tokens')
+    DAriA_dcd = Differentiable_AriEL(vocabSize = vocabSize,
+                                     embDim = embDim,
+                                     latDim = latDim,
+                                     max_senLen = max_senLen,
+                                     startId = 0,
+                                     output_type = 'tokens')
 
 
     input_question = Input(shape=(None,), name='discrete_sequence')
@@ -248,7 +250,7 @@ def test_vAriEL_AE_dcd_model():
 
         
         
-def test_vAriEL_AE_cdc_model():
+def test_DAriEL_AE_cdc_model():
     
     _, points = random_sequences_and_points()
     
@@ -259,10 +261,11 @@ def test_vAriEL_AE_cdc_model():
           """)        
 
     DAriA_cdc = Differentiable_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
-                                   max_senLen = max_senLen,
-                                   output_type = 'tokens')
+                                     embDim = embDim,
+                                     latDim = latDim,
+                                     max_senLen = max_senLen,
+                                     startId = 0,
+                                     output_type = 'tokens')
 
 
     input_point = Input(shape=(latDim,), name='discrete_sequence')
@@ -290,9 +293,9 @@ def test_vAriEL_AE_cdc_model():
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
-        #print(w)
-        #print('        ', g)
-        assert g[0] != None
+        print(w)
+        print('        ', g)
+        #assert g[0] != None
 
     print("""
           Test Fit
@@ -486,7 +489,9 @@ def test_DAriA_Decoder_cross_entropy():
     
     categorical_questions = to_categorical(questions, num_classes = vocabSize)
     print('')
-    print(categorical_questions)
+    #print(categorical_questions)
+    print('')
+    print(categorical_questions.shape)
     
     # 1. it works
     #model = vAriEL_Decoder_model(vocabSize = vocabSize, 
@@ -511,11 +516,7 @@ def test_DAriA_Decoder_cross_entropy():
     # vocabSize + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_point, outputs=discrete_output)   # + [continuous_latent_space])    
     
-    
-    
-    model.summary()
-
-
+    #model.summary()
 
     
     prediction = model.predict(points)
@@ -669,7 +670,29 @@ def test_vAriEL_onMNIST():
     # the goal is to find a way to trim the tree
 
 
+def test_DAriEL_model_from_outside():
+    print("""
+          Test Decoding
+          
+          """)
+
+    questions, points = random_sequences_and_points()
     
+    LM = predefined_model(vocabSize, embDim)
+
+
+    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
+    model = DAriEL_Decoder_model(vocabSize = vocabSize, 
+                                 embDim = embDim, 
+                                 latDim = latDim, 
+                                 max_senLen = max_senLen, 
+                                 startId = 0,
+                                 language_model = LM,
+                                 output_type='tokens')
+    
+    prediction = model.predict(points)
+
+    print(prediction)
    
 def test_DAriA_Decoder_wasserstein():
     """
@@ -687,9 +710,9 @@ if __name__ == '__main__':
     print('=========================================================================================')
     #test_DAriEL_Encoder_model()   # works for DAriEL v2
     print('=========================================================================================')    
-    #test_vAriEL_AE_dcd_model()
+    #test_DAriEL_AE_dcd_model()     # works for DAriEL v2
     print('=========================================================================================')    
-    #test_vAriEL_AE_cdc_model()
+    #test_DAriEL_AE_cdc_model()    # works for DAriEL v2
     print('=========================================================================================')    
     #test_stuff_inside_AE()
     print('=========================================================================================')    
@@ -697,8 +720,10 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
     print('=========================================================================================')    
-    test_DAriA_Decoder_cross_entropy()
+    #test_DAriA_Decoder_cross_entropy()   # works for DAriEL v2
     print('=========================================================================================')    
     #test_vAriEL_dcd_CCE()
     #test_new_Decoder()
     #test_vAriEL_onMNIST()
+    print('=========================================================================================')    
+    test_DAriEL_model_from_outside()

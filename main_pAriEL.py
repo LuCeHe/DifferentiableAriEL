@@ -59,7 +59,7 @@ latentTestRate = int(epochs_in/10) if not int(epochs_in/10) == 0 else 1
 
 
 
-def even_simpler_main(categorical_TF=True):
+def main(categorical_TF=True):
 
     # create experiment folder to save the results
     experiment_path = make_directories()
@@ -158,13 +158,13 @@ def even_simpler_main(categorical_TF=True):
     # Define the main model, the autoencoder
     ################################################################################
     
-    language_model = ae_model
+    #language_model = ae_model
     DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
                                   embDim = embDim,
                                   latDim = latDim,
                                   max_senLen = max_senLen,
                                   output_type = 'both',
-                                  language_model = language_model,
+                                  language_model = ae_model,
                                   startId = generator_class.startId)
 
 
@@ -200,6 +200,4 @@ def even_simpler_main(categorical_TF=True):
 
     
 if __name__ == '__main__':
-    #main()
-    #simpler_main()
-    even_simpler_main()
+    main()
