@@ -187,7 +187,7 @@ class Vocabulary(object):
             tokens.remove(Vocabulary.endToken)
 
         indicesByTokens = dict()
-        tokens = [Vocabulary.endToken] + list(tokens)
+        tokens = [Vocabulary.endToken] + sorted(list(tokens))
         for i, token in enumerate(tokens):
             indicesByTokens[token] = i
         self.__dict__.update(tokens=tokens,

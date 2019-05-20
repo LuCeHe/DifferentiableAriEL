@@ -35,8 +35,9 @@
 
 """
 
-- instead of feeding embedding/lstm/TimeDistributed from outside, just feed anymodel discrete -> softmax
-- so I can plug in more complex models
+- [DONE] instead of feeding embedding/lstm/TimeDistributed from outside, just feed anymodel discrete -> softmax
+- [DONE] so I can plug in more complex models
+- [DONE] make it next token prediction
 
 """
 

@@ -95,6 +95,21 @@ class Slice(object):
         return Lambda(slice_from_to, arguments={'initial': self.initial, 'final': self.final})(inputs)
 
 
+class Clip(object):
+    def __init__(self, min_value=0., max_value=1.):
+        self.min_value, self.max_value = min_value, max_value
+        
+    def __call_(self, inputs):
+        return Lambda(clip_layer, arguments={'min_value': self.min_value, 'max_value': self.max_value})(inputs)
+
+
+def clip_layer(inputs, min_value, max_value):            
+    eps = .5e-6
+    clipped_point = K.clip(inputs, min_value + eps, max_value - eps)
+    return clipped_point
+
+        
+
 def slice_(x):
     return x[:, :-1, :]
 
@@ -162,7 +177,6 @@ class DAriEL_Encoder_Layer(object):
             final_softmaxes = Concatenate(axis=1)([final_softmaxes, expanded_os])
             
         final_softmaxes = Lambda(slice_)(final_softmaxes)
-        print('final_softmaxes:   ', K.int_shape(final_softmaxes))
         
         point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
         
@@ -318,12 +332,7 @@ class pointToProbs(object):
         
         # by clipping the values, it can accept inputs that go beyong the 
         # unit hypercube
-        def clip_layer(inputs):            
-            eps = .5e-6
-            clipped_point = K.clip(inputs, 0. + eps, 1. - eps)
-            return clipped_point
-        
-        clipped_layer = Lambda(clip_layer)(input_point)
+        clipped_layer = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': 1.})(inputs)   #Clip(0., 1.)(input_point)
         
         unfolding_point = clipped_layer
         
@@ -441,16 +450,6 @@ class pointToProbs(object):
         return output
 
 
-def predefined_model(vocabSize, embDim):
-    embedding = Embedding(vocabSize, embDim, mask_zero='True')
-    lstm = LSTM(128, return_sequences=False)
-    
-    input_question = Input(shape=(None,), name='discrete_sequence')
-    embed = embedding(input_question)
-    lstm_output = lstm(embed)
-    softmax = Dense(vocabSize, activation='softmax')(lstm_output)
-    
-    return Model(inputs=input_question, outputs=softmax)
 
 
 class Differentiable_AriEL(object):
