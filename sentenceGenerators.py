@@ -36,8 +36,8 @@ from nltk import CFG
 from nlp import Vocabulary, NltkGrammarSampler
 from nltk.parse.generate import generate
 import string
-from keras.preprocessing.sequence import pad_sequences
-from keras.utils import to_categorical
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.utils import to_categorical
 from tensorflow.python.framework.test_ops import list_input
 
 

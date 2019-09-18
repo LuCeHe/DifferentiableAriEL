@@ -50,15 +50,14 @@ from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_Ar
 
 from nltk import CFG
 from sentenceGenerators import c2n_generator
-from keras.models import Model
-from keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, LSTM, Embedding, Reshape, Dense, TimeDistributed, \
                          GaussianNoise, Activation
-from keras import optimizers
-from keras.callbacks import TensorBoard
-from utils import checkDuringTraining, plot_softmax_evolution, make_directories, \
-                  TestActiveGaussianNoise, SelfAdjustingGaussianNoise
+from tensorflow.keras import optimizers
+from tensorflow.keras.callbacks import TensorBoard
+from utils import checkDuringTraining, plot_softmax_evolution, make_directories
 
-from keras.utils.np_utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 from DifferentiableAriEL.tests import random_sequences_and_points
 
 # grammar cannot have recursion!

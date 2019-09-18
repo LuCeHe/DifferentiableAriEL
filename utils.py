@@ -35,13 +35,14 @@ import os
 import numpy as np
 from time import strftime, localtime
 
-import keras
-import keras.backend as K
-from keras.legacy import interfaces
-from keras.engine.base_layer import Layer
-from keras.engine import InputSpec
+import tensorflow.keras.backend as K
+#from tensorflow.keras.legacy import interfaces
+#from tensorflow.keras.layers import Layer
+#from tensorflow.keras.engine import InputSpec
 import tensorflow as tf
 
+
+"""
 class TestActiveGaussianNoise(Layer):
     @interfaces.legacy_gaussiannoise_support
     def __init__(self, stddev, **kwargs):
@@ -72,7 +73,7 @@ class SelfAdjustingGaussianNoise(Layer):
         self.supports_masking = True
         
         if not tensor_type in ['scalar', 'tensor']: 
-            raise ValueError("""tensor_type can be either 'scalar' or 'tensor'!""")
+            raise ValueError(tensor_type can be either 'scalar' or 'tensor'!")
             
         self.tensor_type = tensor_type
         
@@ -118,6 +119,7 @@ class SelfAdjustingGaussianNoise(Layer):
         return input_shape
 
 
+"""
 
 def make_directories(time_string = None):
     

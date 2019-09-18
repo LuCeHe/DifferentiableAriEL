@@ -29,21 +29,27 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
+import time 
+import matplotlib
+from tensorflow.keras.callbacks import TensorBoard
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 import numpy as np
 from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL,\
-    predefined_model
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Sequential, Model
-from keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
+    predefined_model, DAriEL_Encoder_Layer, DAriEL_Decoder_Layer
+
+import tensorflow.keras.backend as K
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
                          Bidirectional, LSTM, Lambda, TimeDistributed, \
                          RepeatVector, Activation, GaussianNoise, Flatten, \
                          Reshape
                          
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 import tensorflow as tf
-from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
+#from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 
 # TODO: move to unittest type of test
@@ -55,8 +61,29 @@ batchSize = 3 #4
 latDim = 4
 embDim = 2
                                 
-                                
-def random_sequences_and_points(repeated=False, vocabSize=vocabSize):
+def biasedSequences(batchSize=3):    
+    
+    options = [[0,1,0,0],
+               [0,2,0,0],
+               [0,1,1,0],
+               [0,1,2,0],
+               [0,1,3,0],
+               [0,2,3,0],
+               [0,1,2,3],
+               [0,2,3,3]]
+    
+    options = np.array(options)
+
+    frequencies = [1,1,6,6,11,6,1,1]
+    probs = [f/sum(frequencies) for f in frequencies]
+    
+    biased_data_indices = np.random.choice(len(options), batchSize, probs).tolist()
+    biased_sequences = options[biased_data_indices]
+
+    return biased_sequences
+    
+                                    
+def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=False, vocabSize=vocabSize):
     
     if not repeated:
         questions = []
@@ -77,14 +104,14 @@ def random_sequences_and_points(repeated=False, vocabSize=vocabSize):
         
     padded_questions = pad_sequences(questions)
     #print(questions)
-    print('')
-    print('padded questions')
-    print(padded_questions)
-    print('')
-    print('points')
-    print(points)
-    print('')
-    print('')
+    #print('')
+    #print('padded questions')
+    #print(padded_questions)
+    #print('')
+    #print('points')
+    #print(points)
+    #print('')
+    #print('')
 
     return padded_questions, points
 
@@ -738,29 +765,142 @@ def test_DAriA_Decoder_wasserstein():
     pass
 
 
+def checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen):
+    _, points = random_sequences_and_points(batchSize=10000, latDim=latDim, max_senLen=max_senLen)
+    prediction = decoder_model.predict(points)
+    
+    _, labels= np.unique(prediction, axis=0, return_inverse=True)
+    
+    plt.scatter(points[:, 0], points[:, 1], c=labels,
+                s=50, cmap='gist_ncar');
+    plt.show()
 
 
+def timeStructured():
+    named_tuple = time.localtime() # get struct_time
+    time_string = time.strftime("%Y-%m-%d-%H-%M-%S", named_tuple)
+    return time_string
+
+
+def test_2d_visualization():
+    max_senLen = 4
+    vocabSize = 4
+    embDim = int(np.sqrt(vocabSize) + 1)
+    latDim = 2
+    epochs = 100
+    
+    DAriA = Differentiable_AriEL(vocabSize = vocabSize,
+                                 embDim = embDim,
+                                 latDim = latDim,
+                                 max_senLen = max_senLen,
+                                 output_type = 'both',
+                                 startId=0)
+    
+    input_questions = Input(shape=(latDim,), name='question')    
+    point = DAriA.decode(input_questions)
+    decoder_model = Model(inputs=input_questions, outputs=point[0])
+
+    checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen)
+    
+    # bias the representation
+    
+    bs = biasedSequences(batchSize=1000)
+    categorical_bs = to_categorical(bs, num_classes = vocabSize)
+
+    bs_val = biasedSequences(batchSize=100)
+    categorical_bs_val = to_categorical(bs_val, num_classes = vocabSize)    
+    
+    print("""
+          Test Auto-Encoder DCD
+          
+          """)        
+
+    input_question = Input(shape=(None,), name='discrete_sequence')
+    continuous_latent_space = DAriA.encode(input_question)    
+    discrete_output = DAriA.decode(continuous_latent_space)
+    
+    ae_model = Model(inputs=input_question, outputs=discrete_output[1])   # + [continuous_latent_space])     
+    ae_model.summary()    
+
+    print("""
+          Test Fit
+          
+          """)
+    
+    time_string = timeStructured()
+    tensorboard = TensorBoard(log_dir="logs/{}_test_2d_visualization".format(time_string), histogram_freq=int(epochs/10), write_grads=True)
+    callbacks = []
+    ae_model.compile(loss='mse', optimizer='sgd')
+    ae_model.fit(bs, categorical_bs, epochs=epochs, callbacks=callbacks, validation_data=[bs_val, categorical_bs_val], validation_freq=1)    
+
+    checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen)
+    
+    predictions = ae_model.predict(bs)
+    pred = np.argmax(predictions, axis=1)
+    
+    print(pred)
+
+
+import sys
+import numpy
+numpy.set_printoptions(threshold=sys.maxsize, suppress=True)
+
+def test_division_explosion():
+    max_senLen = 400  #20 #
+    vocabSize = 4000  #1500 #
+    embDim = int(np.sqrt(vocabSize) + 1)
+    latDim = 2
+    epochs = 100
+    
+    questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen)
+    answers = to_categorical(questions[:,1], vocabSize)
+    print(answers)
+    LM = predefined_model(vocabSize, embDim)    
+    LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])    
+    LM.fit(questions, answers, epochs=epochs)    
+    
+    DAriA = Differentiable_AriEL(vocabSize = vocabSize,
+                                 embDim = embDim,
+                                 latDim = latDim,
+                                 max_senLen = max_senLen,
+                                 output_type = 'both',
+                                 language_model=LM,
+                                 startId=0)
+    
+    input_questions = Input(shape=(latDim,), name='question')    
+    point = DAriA.decode(input_questions)
+    decoder_model = Model(inputs=input_questions, outputs=point[0])
+
+    _, points = random_sequences_and_points(batchSize=100, latDim=latDim, max_senLen=max_senLen)
+    pred = decoder_model.predict(points, verbose=1)
+    
+    print(pred)
 
 if __name__ == '__main__':
     #test_DAriEL_Decoder_model()   # works for DAriEL v2
-    print('=========================================================================================')
+    #print('=========================================================================================')
     #test_DAriEL_Encoder_model()   # works for DAriEL v2
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_DAriEL_AE_dcd_model()     # works for DAriEL v2
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_DAriEL_AE_cdc_model()    # works for DAriEL v2
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_stuff_inside_AE()
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_Decoder_forTooMuchNoise()
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_SelfAdjustingGaussianNoise()
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_DAriA_Decoder_cross_entropy()   # works for DAriEL v2
-    print('=========================================================================================')    
+    #print('=========================================================================================')    
     #test_vAriEL_dcd_CCE()
     #test_new_Decoder()
     #test_vAriEL_onMNIST()
     print('=========================================================================================')    
     #test_DAriEL_model_from_outside()       # works for DAriEL v2
-    test_DAriEL_model_from_outside_v2()
+    #test_DAriEL_model_from_outside_v2()
+    #test_2d_visualization()
+    test_division_explosion()
+    
+    
+    

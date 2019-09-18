@@ -21,9 +21,9 @@ import logging
 
 import tensorflow as tf
 
-import keras.backend as K
-from keras.models import Model
-from keras.layers import concatenate, Input, Embedding, \
+import tensorflow.keras.backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import concatenate, Input, Embedding, \
                          LSTM, Lambda, TimeDistributed, \
                          Activation, Concatenate, Dense
 
@@ -95,6 +95,16 @@ class Slice(object):
         return Lambda(slice_from_to, arguments={'initial': self.initial, 'final': self.final})(inputs)
 
 
+def slice_(x):
+    return x[:, :-1, :]
+
+
+def slice_from_to(x, initial, final):
+    # None can be used where initial or final, so
+    # [1:] = [1:None]
+    return x[:, initial:final]
+
+
 class Clip(object):
     def __init__(self, min_value=0., max_value=1.):
         self.min_value, self.max_value = min_value, max_value
@@ -109,13 +119,6 @@ def clip_layer(inputs, min_value, max_value):
     return clipped_point
 
         
-
-def slice_(x):
-    return x[:, :-1, :]
-
-
-def slice_from_to(x, initial, final):
-    return x[:, initial:final]
 
 
 def DAriEL_Encoder_model(vocabSize=101,
@@ -143,14 +146,16 @@ class DAriEL_Encoder_Layer(object):
                  latDim=4,
                  language_model=None,
                  max_senLen=6,
-                 startId=None):  
+                 startId=None,
+                 softmaxes=False):  
 
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
                              latDim=latDim,
                              language_model=language_model,
                              max_senLen=max_senLen,
-                             startId=startId)
+                             startId=startId,
+                             softmaxes=softmaxes)
         
         if self.language_model == None:
             self.language_model = predefined_model(vocabSize, embDim)           
@@ -179,8 +184,13 @@ class DAriEL_Encoder_Layer(object):
         final_softmaxes = Lambda(slice_)(final_softmaxes)
         
         point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
-        
-        return point
+
+
+        if not self.softmaxes:
+            return point
+        else:
+            return point, final_softmaxes
+
 
 
 class probsToPoint(object):
@@ -352,28 +362,33 @@ class pointToProbs(object):
             cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
             cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
 
-            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocabSize, 1)                
+            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocabSize, 1)
             
             # determine the token selected (2 steps: xor and token)
-            # differentiable xor (instead of tf.logical_xor)                
+            # differentiable xor (instead of tf.logical_xor)
             c_minus_v = tf.subtract(cumsum, value_of_interest)
             ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
             signed_xor = c_minus_v * ce_minus_c
             abs_sx = tf.abs(signed_xor)
+            eps = 1e-5; abs_sx = K.clip(abs_sx, 0 + eps, 1e10 - eps)  #hack
             almost_xor = tf.divide(signed_xor, abs_sx)
             almost_xor = tf.add(almost_xor, -1)
-            xor = tf.abs(tf.divide(almost_xor, -2))
+            almost_xor = tf.divide(almost_xor, -2)
+            xor = tf.abs(almost_xor)
             
-            # differentiable argmax (instead of tf.argmax)                
-            almost_token = tf.divide(c_minus_v, tf.abs(c_minus_v))
-            almost_token = tf.abs(tf.divide(tf.add(almost_token, -1), -2))
+            # differentiable argmax (instead of tf.argmax)     
+            abs_c_minus_v = tf.abs(c_minus_v)           
+            eps = .5e-6; abs_c_minus_v = K.clip(abs_c_minus_v, 0 + eps, 1e10 - eps)  #hack
+            almost_token = tf.divide(c_minus_v, abs_c_minus_v)
+            almost_token = tf.divide(tf.add(almost_token, -1), -2)
+            almost_token = tf.abs(almost_token)
             token = tf.reduce_sum(almost_token, axis=1)
             token = tf.expand_dims(token, axis=1)
             
-            # expand dimensions to be able to performa a proper matrix 
+            # expand dimensions to be able to perform a proper matrix 
             # multiplication after
             xor = tf.expand_dims(xor, axis=1)
-            cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)                   
+            cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)
             
             # the c_iti value has to be subtracted to the point for the 
             # next round on this dimension                
@@ -397,6 +412,7 @@ class pointToProbs(object):
             p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
             p_iti = tf.subtract(p_iti_plus_ones, one_hots)
             
+            eps = .5e-6; unfolding_point = K.clip(unfolding_point, 0 + eps, 1 - eps)  #hack
             unfolding_point = tf.divide(unfolding_point, p_iti)            
             
             return [token, unfolding_point]
@@ -435,7 +451,7 @@ class pointToProbs(object):
         # softmaxes = final_softmaxes
         tokens = final_tokens
 
-        # FIXME: give two options: the model giving back the whol softmaxes
+        # FIXME: give two options: the model giving back the whole softmaxes
         # sequence, or the model giving back the sequence of tokens 
         
         if self.output_type == 'tokens':
