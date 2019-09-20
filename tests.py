@@ -246,10 +246,13 @@ def test_DAriEL_AE_dcd_model():
     model = Model(inputs=input_question, outputs=discrete_output)   # + [continuous_latent_space])    
     model.summary()
     
-    for layer in model.predict(questions):
-        print(layer)
-        print('\n')
-        
+    predictions = model.predict(questions)
+    from prettytable import PrettyTable
+    t = PrettyTable(['Question', 'Reconstruction'])
+    for a in zip(questions, predictions):
+        t.add_row([*a])
+    
+    print(t)
     
     print("""
           Test Gradients
@@ -783,6 +786,10 @@ def timeStructured():
 
 
 def test_2d_visualization():
+    
+    # FIXME: it's cool that it is learning but it doesn't
+    # seem to be learning enough
+    
     max_senLen = 4
     vocabSize = 4
     embDim = int(np.sqrt(vocabSize) + 1)
@@ -813,7 +820,8 @@ def test_2d_visualization():
     print("""
           Test Auto-Encoder DCD
           
-          """)        
+          """)
+          
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     continuous_latent_space = DAriA.encode(input_question)    
@@ -829,7 +837,7 @@ def test_2d_visualization():
     
     time_string = timeStructured()
     tensorboard = TensorBoard(log_dir="logs/{}_test_2d_visualization".format(time_string), histogram_freq=int(epochs/10), write_grads=True)
-    callbacks = []
+    callbacks = [tensorboard]
     ae_model.compile(loss='mse', optimizer='sgd')
     ae_model.fit(bs, categorical_bs, epochs=epochs, callbacks=callbacks, validation_data=[bs_val, categorical_bs_val], validation_freq=1)    
 
@@ -837,8 +845,14 @@ def test_2d_visualization():
     
     predictions = ae_model.predict(bs)
     pred = np.argmax(predictions, axis=1)
+        
+    from prettytable import PrettyTable
+    t = PrettyTable(['bs', 'pred'])
+    for a in zip(bs, pred):
+        t.add_row([*a])
     
-    print(pred)
+    print(t)
+
 
 
 import sys
@@ -846,10 +860,10 @@ import numpy
 numpy.set_printoptions(threshold=sys.maxsize, suppress=True)
 
 def test_division_explosion():
-    max_senLen = 400  #20 #
-    vocabSize = 4000  #1500 #
+    max_senLen = 20  #20 #
+    vocabSize = 1500 #1500 #
     embDim = int(np.sqrt(vocabSize) + 1)
-    latDim = 2
+    latDim = 20
     epochs = 100
     
     questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen)
@@ -875,7 +889,7 @@ def test_division_explosion():
     pred = decoder_model.predict(points, verbose=1)
     
     print(pred)
-
+    
 if __name__ == '__main__':
     #test_DAriEL_Decoder_model()   # works for DAriEL v2
     #print('=========================================================================================')
@@ -899,8 +913,8 @@ if __name__ == '__main__':
     print('=========================================================================================')    
     #test_DAriEL_model_from_outside()       # works for DAriEL v2
     #test_DAriEL_model_from_outside_v2()
-    #test_2d_visualization()
-    test_division_explosion()
+    test_2d_visualization()
+    #test_division_explosion()
     
     
     
