@@ -21,6 +21,11 @@ import numpy as np
 import logging
 
 import tensorflow as tf
+from tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD,\
+    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros,\
+    pzToSymbolAndZ
+from keras_layers import ExpandDims, Slice
+tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import concatenate, Input, Embedding, \
@@ -33,12 +38,41 @@ from tensorflow.python.framework import function
 from numpy.random import seed
 from numba.testing.ddt import feed_data
 seed(3)
-from tensorflow import set_random_seed
-set_random_seed(2)
+tf.random.set_seed(2)
 
 logger = logging.getLogger(__name__)
 
 
+
+
+def showGradientsAndTrainableParams(model):
+    
+    print("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        print(w)
+        print('        ', g)  
+
+    print("""
+          Number of trainable params
+          
+          """)
+
+    trainable_count = int(
+        np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+    non_trainable_count = int(
+        np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+    
+    print('Total params: {:,}'.format(trainable_count + non_trainable_count))
+    print('Trainable params: {:,}'.format(trainable_count))
+    print('Non-trainable params: {:,}'.format(non_trainable_count))
+
+    
 def predefined_model(vocabSize, embDim):
     embedding = Embedding(vocabSize, embDim, mask_zero='True')
     lstm = LSTM(128, return_sequences=False)
@@ -51,78 +85,6 @@ def predefined_model(vocabSize, embDim):
     return Model(inputs=input_question, outputs=softmax)
                  
 
-# FIXME: don't pass arguments as 
-# Lambda(dynamic_zeros, arguments={'d': dimension})(input)
-# since it might not be saved with the model
-def dynamic_zeros(x, d):
-    batch_size = tf.shape(x)[0]
-    return tf.zeros(tf.stack([batch_size, 1, d]))
-
-
-def dynamic_ones(x, d):
-    batch_size = tf.shape(x)[0]
-    return tf.ones(tf.stack([batch_size, 1, d]))
-
-
-def dynamic_fill(x, d, value):
-    batch_size = tf.shape(x)[0]
-    return tf.fill(tf.stack([batch_size, 1, d]), value)
-
-
-def dynamic_one_hot(x, d, pos):
-    batch_size = tf.shape(x)[0]
-    one_hots = tf.ones(tf.stack([batch_size, 1, d])) * tf.one_hot(pos, d)
-    return one_hots
-
-
-class ExpandDims(object):
-
-    def __init__(self, axis):
-        self.axis = axis
-        
-    def __call__(self, inputs):
-
-        def ed(tensor, axis):
-            expanded = K.expand_dims(tensor, axis=axis)
-            return expanded
-        
-        return Lambda(ed, arguments={'axis': self.axis})(inputs)
-
-
-class Slice(object):
-
-    # axis parameter is not functional
-    def __init__(self, axis, initial, final):
-        self.axis, self.initial, self.final = axis, initial, final
-        
-    def __call__(self, inputs):
-        return Lambda(slice_from_to, arguments={'initial': self.initial, 'final': self.final})(inputs)
-
-
-def slice_(x):
-    return x[:, :-1, :]
-
-
-def slice_from_to(x, initial, final):
-    # None can be used where initial or final, so
-    # [1:] = [1:None]
-    return x[:, initial:final]
-
-
-class Clip(object):
-    def __init__(self, min_value=0., max_value=1.):
-        self.min_value, self.max_value = min_value, max_value
-        
-    def __call_(self, inputs):
-        return Lambda(clip_layer, arguments={'min_value': self.min_value, 'max_value': self.max_value})(inputs)
-
-
-def clip_layer(inputs, min_value, max_value):            
-    eps = .5e-6
-    clipped_point = K.clip(inputs, min_value + eps, max_value - eps)
-    return clipped_point
-
-        
 
 
 def DAriEL_Encoder_model(vocabSize=101,
@@ -218,7 +180,7 @@ class probsToPoint(object):
             cumsums = tf.cumsum(listProbs, axis=2, exclusive=True)
             # for p_ij, c_ij, token_i in zip(listProbs, cumsums, listTokens):
             
-            listTokens = tf.to_int32(listTokens)
+            listTokens = tf.cast(listTokens, dtype=tf.int32) 
             one_hot = K.one_hot(listTokens, self.vocabSize)
             
             p_iti = K.sum(listProbs * one_hot, axis=2)
@@ -239,7 +201,7 @@ class probsToPoint(object):
             c_latent = tf.reshape(c_padded, [-1, tf.shape(c_iti)[1], self.latDim])
             
             # calculate the final position determined by AriEL
-            p_cumprod = tf.cumprod(p_latent, axis=1, exclusive=True)
+            p_cumprod = tf.math.cumprod(p_latent, axis=1, exclusive=True)
             p_prod = tf.reduce_prod(p_latent, axis=1)
             cp = c_latent * p_cumprod
             
@@ -314,74 +276,6 @@ class DAriEL_Decoder_Layer(object):
     
         return output
 
-# this method seems to be quite unstable given the division by probabilities
-def pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest):
-    # determine the token selected (2 steps: xor and token)
-    # differentiable xor (instead of tf.logical_xor)
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    signed_xor = c_minus_v * ce_minus_c
-    abs_sx = tf.abs(signed_xor)
-    eps = 1e-5; abs_sx = K.clip(abs_sx, 0 + eps, 1e10 - eps)  #hack
-    almost_xor = tf.divide(signed_xor, abs_sx)
-    almost_xor = tf.add(almost_xor, -1)
-    almost_xor = tf.divide(almost_xor, -2)
-    oh_symbol = tf.abs(almost_xor)
-    
-    # differentiable argmax (instead of tf.argmax)    
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    abs_c_minus_v = tf.abs(c_minus_v)           
-    eps = 1e-5; abs_c_minus_v = K.clip(abs_c_minus_v, 0 + eps, 1e10 - eps)  #hack
-    almost_symbol = tf.divide(c_minus_v, abs_c_minus_v)
-    almost_symbol = tf.divide(tf.add(almost_symbol, -1), -2)
-    almost_symbol = tf.abs(almost_symbol)
-    symbol = tf.reduce_sum(almost_symbol, axis=1)
-    symbol = tf.expand_dims(symbol, axis=1)
-
-    return symbol, oh_symbol
-
-@function.Defun()
-def argmaxPseudoGrad(cumsum, cumsum_exclusive, value_of_interest, grad):
-    dE_dz = tf.cast(grad, dtype=tf.float32)
-    #dE_dz = tf.expand_dims(dE_dz, axis=1)
-
-    #c_minus_v = tf.subtract(cumsum, value_of_interest)
-    #ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    #signed_xor = c_minus_v * ce_minus_c
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    signed_xor = c_minus_v * ce_minus_c
-    dz_dc_scaled = tf.maximum(1 - signed_xor, 0)   # val_loss: 0.1689
-    dz_dc_scaled = - 10*signed_xor   # worse than when noArgmax
-
-    cumsum_grad = dE_dz * dz_dc_scaled #tf.zeros_like(cumsum_exclusive) #dE_dz * c_minus_v # * tf.ones_like(cumsum_exclusive)
-    cumsum_exclusive_grad = tf.zeros_like(cumsum_exclusive) #dE_dz * ce_minus_c #tf.zeros_like(cumsum_exclusive)
-    value_grad = tf.ones_like(value_of_interest) #dE_dz*tf.ones_like(value_of_interest)   # ones val_loss: 0.1689 | dE_dz*tf.ones_like(value_of_interest) not very good
-    
-    return [cumsum_grad, 
-            cumsum_exclusive_grad,
-            value_grad]
-
-# this method seems to be quite unstable given the division by probabilities
-@function.Defun(grad_func=argmaxPseudoGrad)
-def pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest):
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    signed_xor = c_minus_v * ce_minus_c
-    symbol = tf.argmin(signed_xor, axis=1)
-
-    symbol = tf.expand_dims(symbol, axis=1)
-    symbol = tf.cast(symbol, dtype=tf.float32)
-    return symbol
-
-
-def pzToSymbol_derivableMock(cumsum, cumsum_exclusive, value_of_interest):
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    signed_xor = c_minus_v * ce_minus_c
-    symbol = tf.reduce_sum(signed_xor, axis=1)
-    
-    return [symbol, cumsum]
 
 class pointToProbs(object):
 
@@ -423,65 +317,15 @@ class pointToProbs(object):
         final_softmaxes = expanded_os
         final_tokens = None  # startId_layer
         curDim = 0
+        curDim_t = tf.constant(curDim)
 
-        def create_new_token(inputs):
-            
-            one_softmax, unfolding_point = inputs
-            one_softmax = K.expand_dims(one_softmax, axis=1)
-            expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-            
-            cumsum = K.cumsum(one_softmax, axis=2)
-            cumsum = K.squeeze(cumsum, axis=1)
-            cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
-            cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
-
-            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocabSize, 1)
-            
-            # determine the token selected (2 steps: xor and token)
-            # differentiable xor (instead of tf.logical_xor)
-            token = pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest)
-            oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), self.vocabSize)
-
-            #symbol, oh_symbol = pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest)
-            
-            # expand dimensions to be able to perform a proper matrix 
-            # multiplication after
-            oh_symbol = tf.expand_dims(oh_symbol, axis=1)
-            cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)
-            
-            # the c_iti value has to be subtracted to the point for the 
-            # next round on this dimension                
-            c_iti_value = tf.matmul(oh_symbol, cumsum_exclusive, transpose_b=True)
-            c_iti_value = tf.squeeze(c_iti_value, axis=1)
-            one_hots = dynamic_one_hot(one_softmax, self.latDim, curDim)
-            one_hots = tf.squeeze(one_hots, axis=1)
-            
-            c_iti = c_iti_value * one_hots
-            unfolding_point = tf.subtract(unfolding_point, c_iti)
-            
-            # the p_iti value has to be divided to the point for the next
-            # round on this dimension                
-            one_hots = dynamic_one_hot(one_softmax, self.latDim, curDim)
-            one_hots = tf.squeeze(one_hots, axis=1)
-            p_iti_value = tf.matmul(oh_symbol, one_softmax, transpose_b=True)
-            p_iti_value = K.squeeze(p_iti_value, axis=1)
-            p_iti_and_zeros = p_iti_value * one_hots
-            ones = dynamic_ones(one_softmax, self.latDim)
-            ones = K.squeeze(ones, axis=1)
-            p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
-            p_iti = tf.subtract(p_iti_plus_ones, one_hots)
-            
-            #eps = .5e-6; unfolding_point = K.clip(unfolding_point, 0 + eps, 1 - eps)  #hack
-            unfolding_point = tf.divide(unfolding_point, p_iti)            
-            
-            return [token, unfolding_point]
         
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
         # is maxLen
         for _ in range(self.max_senLen):                
             
-            token, unfolding_point = Lambda(create_new_token)([one_softmax, unfolding_point])
+            token, unfolding_point = Lambda(pzToSymbolAndZ)([one_softmax, unfolding_point, curDim_t])
             token.set_shape((None, 1))
             # output = Lambda(create_new_token)([one_softmax, unfolding_point])
             
@@ -504,6 +348,8 @@ class pointToProbs(object):
             curDim += 1
             if curDim >= self.latDim:
                 curDim = 0
+            
+            curDim_t = tf.constant(curDim)
         
         # remove last softmax, since the initial was given by the an initial
         # zero vector
@@ -610,11 +456,11 @@ def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=Fa
 
 def test():
     
-    max_senLen = 400  #20 #
-    vocabSize = 4000  #1500 #
+    max_senLen = 10  #20 #
+    vocabSize = 100  #1500 #
     embDim = int(np.sqrt(vocabSize) + 1)
-    latDim = 20
-    epochs = 100
+    latDim = 5
+    epochs = 10
     
     questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen, vocabSize=vocabSize)
     answers = to_categorical(questions[:,1], vocabSize)
@@ -639,97 +485,33 @@ def test():
     pred = decoder_model.predict(points, verbose=1)
     
     print(pred)
-
-
-
-def showGradientsAndTrainableParams(model):
     
-    print("""
-          Test Gradients
-          
-          """)
-    weights = model.trainable_weights # weight tensors
+    showGradientsAndTrainableParams(decoder_model)
+
+
+def mini_test():
     
-    grad = tf.gradients(xs=weights, ys=model.output)
-    for g, w in zip(grad, weights):
-        print(w)
-        print('        ', g)  
-
-    print("""
-          Number of trainable params
-          
-          """)
-
-    trainable_count = int(
-        np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
-    non_trainable_count = int(
-        np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
     
-    print('Total params: {:,}'.format(trainable_count + non_trainable_count))
-    print('Trainable params: {:,}'.format(trainable_count))
-    print('Non-trainable params: {:,}'.format(non_trainable_count))
-
-import sys
-import numpy
-numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
-
-def test_detail():
-    batch_size = 20
+    batch_size = 2
     latDim, curDim, vocabSize = 4, 2, 7
     print('Parameters:\nlatDim = {}\ncurDim = {}\nvocabSize = {}\nbatch_size = {}\n\n'.format(latDim, curDim, vocabSize, batch_size))
     
-    point_placeholder = tf.placeholder(tf.float32, shape=(batch_size, latDim))
-    softmax_placeholder = tf.placeholder(tf.float32, shape=(batch_size, vocabSize))
+    unfolding_point = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, latDim))
+    softmax_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, vocabSize))
+    t_latDim = tf.shape(unfolding_point)[-1]
     
-    one_softmax, unfolding_point = softmax_placeholder, point_placeholder
-    one_softmax = K.expand_dims(one_softmax, axis=1)
+    
     expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-    
-    cumsum = K.cumsum(one_softmax, axis=2)
-    cumsum = K.squeeze(cumsum, axis=1)
-    cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
-    cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
-    
-    value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * vocabSize, 1)
-    
-    # argmax approximation
-    token = pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest)
-    xor = tf.one_hot(tf.squeeze(token, axis=1), vocabSize)
-    #token, xor = pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest)
-        
-    # expand dimensions to be able to perform a proper matrix 
-    # multiplication after
-    xor = tf.expand_dims(xor, axis=1)
-    cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)
-    
-    # the c_iti value has to be subtracted to the point for the 
-    # next round on this dimension                
-    c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
-    c_iti_value = tf.squeeze(c_iti_value, axis=1)
-    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
-    one_hots = tf.squeeze(one_hots, axis=1)
-    
-    c_iti = c_iti_value * one_hots
-    unfolding_point = tf.subtract(unfolding_point, c_iti)
-    
-    # the p_iti value has to be divided to the point for the next
-    # round on this dimension                
-    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
-    one_hots = tf.squeeze(one_hots, axis=1)
-    p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
-    p_iti_value = K.squeeze(p_iti_value, axis=1)
-    p_iti_and_zeros = p_iti_value * one_hots
-    ones = dynamic_ones(one_softmax, latDim)
-    ones = K.squeeze(ones, axis=1)
-    p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
-    p_iti = tf.subtract(p_iti_plus_ones, one_hots)
-    
-    #eps = 1e-3; unfolding_point = K.clip(unfolding_point, 0 + eps, 1 - eps)  #hack
-    unfolding_point = tf.divide(unfolding_point, p_iti)
-    
-    
+    t_curDim = tf.constant(curDim)
+
+    x = expanded_unfolding_point[:, :, curDim]
+    t_x = expanded_unfolding_point[:, :, t_curDim]  # works!
+
+    one_hots = dynamic_one_hot(softmax_placeholder, latDim, curDim)
+    t_one_hots = dynamic_one_hot(softmax_placeholder, t_latDim, t_curDim)
+
     # run
-    sess = tf.Session()
+    sess = tf.compat.v1.Session()
     
     random_4softmax = np.random.rand(batch_size, vocabSize)
     
@@ -743,39 +525,15 @@ def test_detail():
     sum_r = random_4softmax.sum(axis=1, keepdims=True)
     initial_softmax = random_4softmax/sum_r
     initial_point = np.random.rand(batch_size, latDim)
-    feed_data = {softmax_placeholder: initial_softmax, point_placeholder: initial_point}
-    results = sess.run([token, softmax_placeholder, unfolding_point, xor], feed_data)
+    feed_data = {softmax_placeholder: initial_softmax, unfolding_point: initial_point}
+    results = sess.run([softmax_placeholder, one_hots, t_one_hots], feed_data)
     
-    
-    from prettytable import PrettyTable
-    t = PrettyTable()
-    for a in zip(*results):
-        t.add_row([*a])
-    
-    print(t)
-
-    print("""
-          Test Gradients
-          
-          """)
-    
-    print('initial_softmax: ', initial_softmax.shape)
-    grad = sess.run(tf.gradients(xs=[point_placeholder, softmax_placeholder], ys=token), feed_data)  #[token, unfolding_point]), feed_data)
-    for g, w in zip(grad, initial_point):
-        print(w)
-        print('        g:       ', g)
-        print('        g.shape: ', g.shape)
-        
-        
-    print("""
-          More Defects to Correct
-          
-          """)
-    
-    print(results[0].shape)
-    
+    for r in results:
+        print(r)
+        print('\n\n')
     
 if __name__ == '__main__':    
     #test_detail()
     test()
+    #mini_test()
     

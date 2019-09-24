@@ -39,6 +39,9 @@ import numpy as np
 from DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL,\
     predefined_model, DAriEL_Encoder_Layer, DAriEL_Decoder_Layer
 
+import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
+
 import tensorflow.keras.backend as K
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential, Model
@@ -48,8 +51,6 @@ from tensorflow.keras.layers import Dense, concatenate, Input, Conv2D, Embedding
                          Reshape
                          
 from tensorflow.keras.utils import to_categorical
-import tensorflow as tf
-#from utils import TestActiveGaussianNoise, SelfAdjustingGaussianNoise
 
 
 # TODO: move to unittest type of test
@@ -784,6 +785,112 @@ def timeStructured():
     time_string = time.strftime("%Y-%m-%d-%H-%M-%S", named_tuple)
     return time_string
 
+import sys
+import numpy
+numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
+
+def test_detail():
+    batch_size = 20
+    latDim, curDim, vocabSize = 4, 2, 7
+    print('Parameters:\nlatDim = {}\ncurDim = {}\nvocabSize = {}\nbatch_size = {}\n\n'.format(latDim, curDim, vocabSize, batch_size))
+    
+    point_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, latDim))
+    softmax_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, vocabSize))
+    
+    one_softmax, unfolding_point = softmax_placeholder, point_placeholder
+    one_softmax = K.expand_dims(one_softmax, axis=1)
+    expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
+    
+    cumsum = K.cumsum(one_softmax, axis=2)
+    cumsum = K.squeeze(cumsum, axis=1)
+    cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
+    cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
+    
+    value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * vocabSize, 1)
+    
+    # argmax approximation
+    token = pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest)
+    xor = tf.one_hot(tf.squeeze(token, axis=1), vocabSize)
+    #token, xor = pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest)
+        
+    # expand dimensions to be able to perform a proper matrix 
+    # multiplication after
+    xor = tf.expand_dims(xor, axis=1)
+    cumsum_exclusive = tf.expand_dims(cumsum_exclusive, axis=1)
+    
+    # the c_iti value has to be subtracted to the point for the 
+    # next round on this dimension                
+    c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
+    c_iti_value = tf.squeeze(c_iti_value, axis=1)
+    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
+    one_hots = tf.squeeze(one_hots, axis=1)
+    
+    c_iti = c_iti_value * one_hots
+    unfolding_point = tf.subtract(unfolding_point, c_iti)
+    
+    # the p_iti value has to be divided to the point for the next
+    # round on this dimension                
+    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
+    one_hots = tf.squeeze(one_hots, axis=1)
+    p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
+    p_iti_value = K.squeeze(p_iti_value, axis=1)
+    p_iti_and_zeros = p_iti_value * one_hots
+    ones = dynamic_ones(one_softmax, latDim)
+    ones = K.squeeze(ones, axis=1)
+    p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
+    p_iti = tf.subtract(p_iti_plus_ones, one_hots)
+    
+    #eps = 1e-3; unfolding_point = K.clip(unfolding_point, 0 + eps, 1 - eps)  #hack
+    unfolding_point = tf.divide(unfolding_point, p_iti)
+    
+    
+    # run
+    sess = tf.Session()
+    
+    random_4softmax = np.random.rand(batch_size, vocabSize)
+    
+    lines = []
+    for line in random_4softmax:
+        index = np.random.choice(vocabSize)
+        line[index] = 100
+        lines.append(line)
+    
+    random_4softmax = np.array(lines)
+    sum_r = random_4softmax.sum(axis=1, keepdims=True)
+    initial_softmax = random_4softmax/sum_r
+    initial_point = np.random.rand(batch_size, latDim)
+    feed_data = {softmax_placeholder: initial_softmax, point_placeholder: initial_point}
+    results = sess.run([token, softmax_placeholder, unfolding_point, xor], feed_data)
+    
+    
+    from prettytable import PrettyTable
+    t = PrettyTable()
+    for a in zip(*results):
+        t.add_row([*a])
+    
+    print(t)
+
+    print("""
+          Test Gradients
+          
+          """)
+    
+    print('initial_softmax: ', initial_softmax.shape)
+    grad = sess.run(tf.gradients(xs=[point_placeholder, softmax_placeholder], ys=token), feed_data)  #[token, unfolding_point]), feed_data)
+    for g, w in zip(grad, initial_point):
+        print(w)
+        print('        g:       ', g)
+        print('        g.shape: ', g.shape)
+        
+        
+    print("""
+          More Defects to Correct
+          
+          """)
+    
+    print(results[0].shape)
+    
+
 
 def test_2d_visualization():
     
@@ -915,6 +1022,5 @@ if __name__ == '__main__':
     #test_DAriEL_model_from_outside_v2()
     test_2d_visualization()
     #test_division_explosion()
-    
     
     
