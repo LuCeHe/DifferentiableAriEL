@@ -4,8 +4,6 @@ import tensorflow.keras.backend as K
 from tensorflow.python.framework import function
 
 
-
-
 # FIXME: don't pass arguments as 
 # Lambda(dynamic_zeros, arguments={'d': dimension})(input)
 # since it might not be saved with the model
@@ -46,8 +44,6 @@ def clip_layer(inputs, min_value, max_value):
     return clipped_point
 
 
-
-
 # this method seems to be quite unstable given the division by probabilities
 def pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest):
     # determine the token selected (2 steps: xor and token)
@@ -56,7 +52,7 @@ def pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest):
     ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
     signed_xor = c_minus_v * ce_minus_c
     abs_sx = tf.abs(signed_xor)
-    eps = 1e-5; abs_sx = K.clip(abs_sx, 0 + eps, 1e10 - eps)  #hack
+    eps = 1e-5; abs_sx = K.clip(abs_sx, 0 + eps, 1e10 - eps)  # hack
     almost_xor = tf.divide(signed_xor, abs_sx)
     almost_xor = tf.add(almost_xor, -1)
     almost_xor = tf.divide(almost_xor, -2)
@@ -65,7 +61,7 @@ def pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest):
     # differentiable argmax (instead of tf.argmax)    
     c_minus_v = tf.subtract(cumsum, value_of_interest)
     abs_c_minus_v = tf.abs(c_minus_v)           
-    eps = 1e-5; abs_c_minus_v = K.clip(abs_c_minus_v, 0 + eps, 1e10 - eps)  #hack
+    eps = 1e-5; abs_c_minus_v = K.clip(abs_c_minus_v, 0 + eps, 1e10 - eps)  # hack
     almost_symbol = tf.divide(c_minus_v, abs_c_minus_v)
     almost_symbol = tf.divide(tf.add(almost_symbol, -1), -2)
     almost_symbol = tf.abs(almost_symbol)
@@ -74,14 +70,15 @@ def pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest):
 
     return symbol, oh_symbol
 
+
 @function.Defun()
 def argmaxPseudoGrad(cumsum, cumsum_exclusive, value_of_interest, grad):
     dE_dz = tf.cast(grad, dtype=tf.float32)
-    #dE_dz = tf.expand_dims(dE_dz, axis=1)
+    # dE_dz = tf.expand_dims(dE_dz, axis=1)
 
-    #c_minus_v = tf.subtract(cumsum, value_of_interest)
-    #ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
-    #signed_xor = c_minus_v * ce_minus_c
+    # c_minus_v = tf.subtract(cumsum, value_of_interest)
+    # ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
+    # signed_xor = c_minus_v * ce_minus_c
     c_minus_v = tf.subtract(cumsum, value_of_interest)
     ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
     signed_xor = c_minus_v * ce_minus_c
@@ -89,17 +86,18 @@ def argmaxPseudoGrad(cumsum, cumsum_exclusive, value_of_interest, grad):
     vocabSize = tf.shape(cumsum)[-1]
     oh_symbol = tf.one_hot(symbol, vocabSize)
 
-    #dz_dc_scaled = tf.maximum(1 - signed_xor, 0)   # val_loss: 0.1689
-    #dz_dc_scaled = - 10*signed_xor   # worse than when noArgmax
+    # dz_dc_scaled = tf.maximum(1 - signed_xor, 0)   # val_loss: 0.1689
+    # dz_dc_scaled = - 10*signed_xor   # worse than when noArgmax
     dz_dc_scaled = oh_symbol
     
-    cumsum_grad = dE_dz * dz_dc_scaled #tf.zeros_like(cumsum_exclusive) #dE_dz * c_minus_v # * tf.ones_like(cumsum_exclusive)
-    cumsum_exclusive_grad = tf.zeros_like(cumsum_exclusive) #dE_dz * ce_minus_c #tf.zeros_like(cumsum_exclusive)
-    value_grad = tf.ones_like(value_of_interest) #dE_dz*tf.ones_like(value_of_interest)   # ones val_loss: 0.1689 | dE_dz*tf.ones_like(value_of_interest) not very good
+    cumsum_grad = dE_dz * dz_dc_scaled  # tf.zeros_like(cumsum_exclusive) #dE_dz * c_minus_v # * tf.ones_like(cumsum_exclusive)
+    cumsum_exclusive_grad = tf.zeros_like(cumsum_exclusive)  # dE_dz * ce_minus_c #tf.zeros_like(cumsum_exclusive)
+    value_grad = tf.ones_like(value_of_interest)  # dE_dz*tf.ones_like(value_of_interest)   # ones val_loss: 0.1689 | dE_dz*tf.ones_like(value_of_interest) not very good
     
-    return [cumsum_grad, 
+    return [cumsum_grad,
             cumsum_exclusive_grad,
             value_grad]
+
 
 # this method seems to be quite unstable given the division by probabilities
 @function.Defun(grad_func=argmaxPseudoGrad)
@@ -114,20 +112,21 @@ def pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest):
     return symbol
 
 
-
 @function.Defun()
 def onehotPseudoGrad(token, cumsum, grad):
     vocabSize = tf.shape(cumsum)[-1]
     oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocabSize)
     oh_grad = grad * oh_symbol
-    return [oh_grad, 
+    return [oh_grad,
             tf.zeros_like(cumsum)]
+
 
 @function.Defun(grad_func=onehotPseudoGrad)
 def onehot_pseudoD(token, cumsum):
     vocabSize = tf.shape(cumsum)[-1]
     oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocabSize)
     return oh_symbol
+
 
 def pzToSymbol_derivableMock(cumsum, cumsum_exclusive, value_of_interest):
     c_minus_v = tf.subtract(cumsum, value_of_interest)
@@ -142,16 +141,22 @@ def pzToSymbolAndZ(inputs):
     
     one_softmax, unfolding_point, curDim = inputs
     one_softmax = K.expand_dims(one_softmax, axis=1)
+    curDim = tf.cast(tf.reduce_mean(curDim), dtype=tf.int64)
+    
+    # FIXME: to make sure the layer can work even if passed an input of values 
+    # range, probably worth to raise a warning
+    eps = .5e-6
+    unfolding_point = K.clip(unfolding_point, 0. + eps, 1. - eps)
+    
     expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
     vocabSize = tf.shape(one_softmax)[-1]
-    latDim    = tf.shape(unfolding_point)[-1]
+    latDim = tf.shape(unfolding_point)[-1]
     
     cumsum = K.cumsum(one_softmax, axis=2)
     cumsum = K.squeeze(cumsum, axis=1)
     cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
     cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
 
-    #value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * vocabSize, 1)
     x = expanded_unfolding_point[:, :, curDim]
     value_of_interest = tf.tile(x, [1, vocabSize])
         
@@ -159,10 +164,7 @@ def pzToSymbolAndZ(inputs):
     # differentiable xor (instead of tf.logical_xor)
     token = pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest)
     oh_symbol = onehot_pseudoD(token, cumsum)
-    #oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), self.vocabSize)
-
-    #symbol, oh_symbol = pzToSymbol_noArgmax(cumsum, cumsum_exclusive, value_of_interest)
-    
+        
     # expand dimensions to be able to perform a proper matrix 
     # multiplication after
     oh_symbol = tf.expand_dims(oh_symbol, axis=1)
@@ -190,7 +192,6 @@ def pzToSymbolAndZ(inputs):
     p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
     p_iti = tf.subtract(p_iti_plus_ones, one_hots)
     
-    #eps = .5e-6; unfolding_point = K.clip(unfolding_point, 0 + eps, 1 - eps)  #hack
     unfolding_point = tf.divide(unfolding_point, p_iti)            
     
     return [token, unfolding_point]

@@ -21,28 +21,26 @@ import numpy as np
 import logging
 
 import tensorflow as tf
-from tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD,\
-    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros,\
+from DifferentiableAriEL.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
+    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros, \
     pzToSymbolAndZ
-from keras_layers import ExpandDims, Slice
+from DifferentiableAriEL.keras_layers import ExpandDims, Slice
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import concatenate, Input, Embedding, \
-                         LSTM, Lambda, TimeDistributed, \
-                         Activation, Concatenate, Dense
+                         LSTM, Lambda, TimeDistributed, RepeatVector, \
+                         Activation, Concatenate, Dense, RNN, Layer
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.framework import function
 
 from numpy.random import seed
-from numba.testing.ddt import feed_data
+
 seed(3)
 tf.random.set_seed(2)
 
 logger = logging.getLogger(__name__)
-
-
 
 
 def showGradientsAndTrainableParams(model):
@@ -51,7 +49,7 @@ def showGradientsAndTrainableParams(model):
           Test Gradients
           
           """)
-    weights = model.trainable_weights # weight tensors
+    weights = model.trainable_weights  # weight tensors
     
     grad = tf.gradients(xs=weights, ys=model.output)
     for g, w in zip(grad, weights):
@@ -83,8 +81,6 @@ def predefined_model(vocabSize, embDim):
     softmax = Dense(vocabSize, activation='softmax')(lstm_output)
     
     return Model(inputs=input_question, outputs=softmax)
-                 
-
 
 
 def DAriEL_Encoder_model(vocabSize=101,
@@ -151,12 +147,10 @@ class DAriEL_Encoder_Layer(object):
         
         point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
 
-
         if not self.softmaxes:
             return point
         else:
             return point, final_softmaxes
-
 
 
 class probsToPoint(object):
@@ -302,14 +296,14 @@ class pointToProbs(object):
         
         startId_layer = Lambda(dynamic_fill, arguments={'d': self.max_senLen, 'value': float(self.startId)})(input_point)
         startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
-        #startId_layer = Lambda(tf.cast, arguments={'dtype': tf.int64})(startId_layer)
+        # startId_layer = Lambda(tf.cast, arguments={'dtype': tf.int64})(startId_layer)
         
         initial_softmax = self.language_model(startId_layer)    
         one_softmax = initial_softmax
         
         # by clipping the values, it can accept inputs that go beyong the 
         # unit hypercube
-        clipped_layer = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': 1.})(inputs)   #Clip(0., 1.)(input_point)
+        clipped_layer = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': 1.})(inputs)  # Clip(0., 1.)(input_point)
         
         unfolding_point = clipped_layer
         
@@ -318,7 +312,6 @@ class pointToProbs(object):
         final_tokens = None  # startId_layer
         curDim = 0
         curDim_t = tf.constant(curDim)
-
         
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
@@ -370,8 +363,6 @@ class pointToProbs(object):
             raise ValueError('the output_type specified is not implemented!')
         
         return output
-
-
 
 
 class Differentiable_AriEL(object):
@@ -427,8 +418,82 @@ class Differentiable_AriEL(object):
     def decode(self, input_continuous_point):
         # it doesn't return a keras Model, it returns a keras Layer        
         return self.DAriA_decoder(input_continuous_point)
-        
 
+
+class DAriEL_Decoder_Layer_2(Layer):
+
+    def __init__(self,
+                 vocabSize=101,
+                 embDim=2,
+                 latDim=4,
+                 language_model=None,
+                 startId=None):  
+        
+        self.__dict__.update(vocabSize=vocabSize,
+                             embDim=embDim,
+                             latDim=latDim,
+                             language_model=language_model,
+                             startId=startId)
+        
+        # if the input is a rnn, use that, otherwise use an LSTM
+        
+        if self.language_model == None:
+            self.language_model = predefined_model(vocabSize, embDim)          
+        
+        if self.startId == None: raise ValueError('Define the startId you are using ;) ')
+    
+        self.built = True
+        
+    @property
+    def state_size(self):
+        return (self.vocabSize,
+                1,
+                self.latDim,
+                1,
+                1)
+
+    @property
+    def output_size(self):
+        return self.vocabSize
+    
+    def call(self, inputs, state):
+        input_point = inputs
+        print(K.int_shape(input_point))
+        one_softmax, tokens, unfolding_point, curDim, timeStep = state
+
+        # initialization        
+        startId_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.startId)})(input_point)
+        startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
+        initial_softmax = self.language_model(startId_layer)
+                  
+        # FIXME: it would be interesting to consider what would happen if we feed different points within
+        # a batch
+        zero = tf.zeros_like(timeStep)
+        pred = tf.math.greater_equal(zero, timeStep)
+        unfolding_point = tf.cond(pred, lambda: input_point, lambda: unfolding_point)
+        one_softmax = tf.cond(pred, lambda: initial_softmax, lambda: one_softmax)
+        tokens = tf.cond(pred, lambda: startId_layer, lambda: tokens)
+        
+        token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
+        token.set_shape((None, 1))
+        
+        #tokens = tf.concat([tokens, token], 1) FIXME
+        tokens = token
+        
+        # get the softmax for the next iteration
+        tokens_in = Input(tensor=tokens)
+        one_softmax = self.language_model(tokens_in)
+        
+        # NOTE: at each iteration, change the dimension, and add a timestep
+        latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
+        pred = tf.math.greater_equal(curDim, latDim)    
+        curDim = tf.cond(pred, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1))
+        timeStep = tf.add(timeStep, 1)
+        
+        new_state = [one_softmax, tokens, unfolding_point, curDim, timeStep]
+        output = one_softmax
+        
+        return output, new_state
 
           
 def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=False, vocabSize=3):
@@ -437,18 +502,18 @@ def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=Fa
         questions = []
         points = np.random.rand(batchSize, latDim)
         for _ in range(batchSize):
-            sentence_length = max_senLen #np.random.choice(max_senLen)
+            sentence_length = max_senLen  # np.random.choice(max_senLen)
             randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
-            #EOS = (vocabSize+1)*np.ones(1)
-            #randomQ = np.concatenate((randomQ, EOS))
+            # EOS = (vocabSize+1)*np.ones(1)
+            # randomQ = np.concatenate((randomQ, EOS))
             questions.append(randomQ)
     else:
         point = np.random.rand(1, latDim)
-        sentence_length = max_senLen #np.random.choice(max_senLen)
+        sentence_length = max_senLen  # np.random.choice(max_senLen)
         question = np.random.choice(vocabSize, sentence_length)  # + 1
         question = np.expand_dims(question, axis=0)
-        points = np.repeat(point, repeats = [batchSize], axis=0)
-        questions = np.repeat(question, repeats = [batchSize], axis=0)
+        points = np.repeat(point, repeats=[batchSize], axis=0)
+        questions = np.repeat(question, repeats=[batchSize], axis=0)
         
     padded_questions = pad_sequences(questions)
     return padded_questions, points
@@ -456,24 +521,24 @@ def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=Fa
 
 def test():
     
-    max_senLen = 10  #20 #
-    vocabSize = 100  #1500 #
+    max_senLen = 10  # 20 #
+    vocabSize = 100  # 1500 #
     embDim = int(np.sqrt(vocabSize) + 1)
     latDim = 5
     epochs = 10
     
     questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen, vocabSize=vocabSize)
-    answers = to_categorical(questions[:,1], vocabSize)
+    answers = to_categorical(questions[:, 1], vocabSize)
     print(answers)
     LM = predefined_model(vocabSize, embDim)    
     LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])    
     LM.fit(questions, answers, epochs=epochs)    
     
-    DAriA = Differentiable_AriEL(vocabSize = vocabSize,
-                                 embDim = embDim,
-                                 latDim = latDim,
-                                 max_senLen = max_senLen,
-                                 output_type = 'both',
+    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen,
+                                 output_type='both',
                                  language_model=LM,
                                  startId=0)
     
@@ -488,52 +553,39 @@ def test():
     
     showGradientsAndTrainableParams(decoder_model)
 
+    
+def test_v2():
+    vocabSize = 5  # 1500 #
+    embDim = 2
+    latDim = 4
+    max_length = 10
+    epochs = 10
+    batchSize = 3
+    
+    cell = DAriEL_Decoder_Layer_2(vocabSize=vocabSize,
+                                  embDim=embDim,
+                                  latDim=latDim,
+                                  language_model=None,
+                                  startId=0)
+    rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
+    
+    input_point = Input(shape=(latDim,), name='question')    
+    point = RepeatVector(max_length)(input_point)
+    sequence = rnn(point)
+    decoder_model = Model(inputs=input_point, outputs=sequence)
+    
+    _, points = random_sequences_and_points(batchSize=batchSize, latDim=latDim, max_senLen=max_length)
+    pred_output, pred_states = decoder_model.predict(points, verbose=1)
+    
+    print(pred_output)
+    print('\n\n\n\n')
+    print(pred_states)
+    
+    #showGradientsAndTrainableParams(decoder_model)
 
-def mini_test():
-    
-    
-    batch_size = 2
-    latDim, curDim, vocabSize = 4, 2, 7
-    print('Parameters:\nlatDim = {}\ncurDim = {}\nvocabSize = {}\nbatch_size = {}\n\n'.format(latDim, curDim, vocabSize, batch_size))
-    
-    unfolding_point = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, latDim))
-    softmax_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, vocabSize))
-    t_latDim = tf.shape(unfolding_point)[-1]
-    
-    
-    expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-    t_curDim = tf.constant(curDim)
-
-    x = expanded_unfolding_point[:, :, curDim]
-    t_x = expanded_unfolding_point[:, :, t_curDim]  # works!
-
-    one_hots = dynamic_one_hot(softmax_placeholder, latDim, curDim)
-    t_one_hots = dynamic_one_hot(softmax_placeholder, t_latDim, t_curDim)
-
-    # run
-    sess = tf.compat.v1.Session()
-    
-    random_4softmax = np.random.rand(batch_size, vocabSize)
-    
-    lines = []
-    for line in random_4softmax:
-        index = np.random.choice(vocabSize)
-        line[index] = 100
-        lines.append(line)
-    
-    random_4softmax = np.array(lines)
-    sum_r = random_4softmax.sum(axis=1, keepdims=True)
-    initial_softmax = random_4softmax/sum_r
-    initial_point = np.random.rand(batch_size, latDim)
-    feed_data = {softmax_placeholder: initial_softmax, unfolding_point: initial_point}
-    results = sess.run([softmax_placeholder, one_hots, t_one_hots], feed_data)
-    
-    for r in results:
-        print(r)
-        print('\n\n')
-    
 if __name__ == '__main__':    
-    #test_detail()
-    test()
-    #mini_test()
+    # test_detail()
+    # test()
+    test_v2()
+    
     

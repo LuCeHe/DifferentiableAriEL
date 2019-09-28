@@ -3,7 +3,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import concatenate, Input, Embedding, \
                          LSTM, Lambda, TimeDistributed, \
                          Activation, Concatenate, Dense
-from tf_helpers import slice_from_to, clip_layer
+from DifferentiableAriEL.tf_helpers import slice_from_to, clip_layer
 
 
 class ExpandDims(object):
