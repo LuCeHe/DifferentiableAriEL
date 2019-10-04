@@ -38,7 +38,7 @@ from tensorflow.python.framework import function
 from numpy.random import seed
 
 seed(3)
-tf.random.set_seed(2)
+tf.set_random_seed(2)
 
 logger = logging.getLogger(__name__)
 

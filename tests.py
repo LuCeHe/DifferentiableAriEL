@@ -923,8 +923,8 @@ def test_2d_visualization():
     
     time_string = timeStructured()
     tensorboard = TensorBoard(log_dir="logs/{}_test_2d_visualization".format(time_string), histogram_freq=int(epochs / 10), write_grads=True)
-    callbacks = [tensorboard]
-    ae_model.compile(loss='mse', optimizer='sgd')
+    callbacks = [] #[tensorboard]
+    ae_model.compile(loss='mse', optimizer='sgd', run_eagerly=False)
     ae_model.fit(bs, categorical_bs, epochs=epochs, callbacks=callbacks, validation_data=[bs_val, categorical_bs_val], validation_freq=1)    
 
     checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen)
