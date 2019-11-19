@@ -17,6 +17,7 @@ vAriEL for New Word Acquisition
 
 """
 
+
 import numpy as np
 import logging
 
