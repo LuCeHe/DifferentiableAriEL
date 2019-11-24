@@ -17,15 +17,12 @@ vAriEL for New Word Acquisition
 
 """
 
-
 import numpy as np
+from numpy.random import seed
 import logging
 
 import tensorflow as tf
-from DifferentiableAriEL.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
-    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros, \
-    pzToSymbolAndZ
-from DifferentiableAriEL.keras_layers import ExpandDims, Slice
+
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
@@ -36,7 +33,10 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.framework import function
 
-from numpy.random import seed
+from DifferentiableAriEL.nnets.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
+    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros, \
+    pzToSymbolAndZ
+from DifferentiableAriEL.nnets.keras_layers import ExpandDims, Slice
 
 seed(3)
 tf.set_random_seed(2)
@@ -124,7 +124,7 @@ class DAriEL_Encoder_Layer(object):
             self.language_model = predefined_model(vocabSize, embDim)           
             
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
-        #if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
+        # if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
         
     def __call__(self, input_questions):
                 
