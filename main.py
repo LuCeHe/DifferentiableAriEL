@@ -430,6 +430,8 @@ def test_DAriEL_model_from_outside_v2():
     noise = np.random.rand(batchSize, latDim)
     indicess, _ = decoder_model.predict(noise)
 
+    prediction = decoder_model.predict(points)
+    print()
     print(indicess)
     
 

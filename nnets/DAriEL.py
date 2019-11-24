@@ -74,7 +74,7 @@ def showGradientsAndTrainableParams(model):
     
 def predefined_model(vocabSize, embDim):
     embedding = Embedding(vocabSize, embDim, mask_zero='True')
-    lstm = LSTM(128, return_sequences=False)
+    lstm = LSTM(512, return_sequences=False)
     
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
@@ -124,7 +124,7 @@ class DAriEL_Encoder_Layer(object):
             self.language_model = predefined_model(vocabSize, embDim)           
             
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
-        if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
+        #if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
         
     def __call__(self, input_questions):
                 
