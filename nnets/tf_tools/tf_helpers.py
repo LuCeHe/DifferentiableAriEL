@@ -1,7 +1,12 @@
 
+import numpy as np
+import logging
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.python.framework import function
+
+logging.getLogger().setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # FIXME: don't pass arguments as 
@@ -195,3 +200,46 @@ def pzToSymbolAndZ(inputs):
     unfolding_point = tf.divide(unfolding_point, p_iti)            
     
     return [token, unfolding_point]
+
+
+def replace_column(matrix, new_column, r):
+    dynamic_index = tf.cast(tf.squeeze(r), dtype=tf.int64)
+    num_cols = tf.shape(matrix)[1]
+    #new_matrix = tf.assign(matrix[:, dynamic_index], new_column)
+    index_row = tf.stack([ tf.eye(num_cols, dtype=tf.float32)[dynamic_index, :] ])
+    old_column = matrix[:, dynamic_index]
+    new = tf.matmul(tf.stack([new_column], axis=1), index_row)
+    old = tf.matmul(tf.stack([old_column], axis=1), index_row)
+    new_matrix = (matrix - old) + new
+    return new_matrix
+
+
+
+def showGradientsAndTrainableParams(model):
+    
+    logger.info("""
+          Test Gradients
+          
+          """)
+    weights = model.trainable_weights  # weight tensors
+    
+    grad = tf.gradients(xs=weights, ys=model.output)
+    for g, w in zip(grad, weights):
+        logger.info(w)
+        logger.info('        ', g)  
+
+    logger.info("""
+          Number of trainable params
+          
+          """)
+
+    trainable_count = int(
+        np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+    non_trainable_count = int(
+        np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+    
+    logger.info('Total params: {:,}'.format(trainable_count + non_trainable_count))
+    logger.info('Trainable params: {:,}'.format(trainable_count))
+    logger.info('Non-trainable params: {:,}'.format(non_trainable_count))
+
+    

@@ -42,85 +42,6 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 
 
-"""
-class TestActiveGaussianNoise(Layer):
-    @interfaces.legacy_gaussiannoise_support
-    def __init__(self, stddev, **kwargs):
-        super(TestActiveGaussianNoise, self).__init__(**kwargs)
-        self.supports_masking = True
-        self.stddev = stddev
-
-    def call(self, inputs, training=None):
-        def noised():
-            return inputs + K.random_normal(shape=K.shape(inputs),
-                                            mean=0.,
-                                            stddev=self.stddev)
-        return K.in_train_phase(noised, noised, training=training)
-
-    def get_config(self):
-        config = {'stddev': self.stddev}
-        base_config = super(TestActiveGaussianNoise, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-        
-    
-class SelfAdjustingGaussianNoise(Layer):
-    @interfaces.legacy_gaussiannoise_support
-    def __init__(self, tensor_type='scalar', **kwargs):
-        super(SelfAdjustingGaussianNoise, self).__init__(**kwargs)
-        self.supports_masking = True
-        
-        if not tensor_type in ['scalar', 'tensor']: 
-            raise ValueError(tensor_type can be either 'scalar' or 'tensor'!")
-            
-        self.tensor_type = tensor_type
-        
-        
-        self.stddev_initializer = keras.initializers.get('ones')
-        self.stddev_regularizer = keras.regularizers.get(None)
-        self.stddev_constraint = keras.constraints.get(None)
-
-
-        
-    def build(self, input_shape):
-        self.input_spec = InputSpec(shape=input_shape)
-        shape = input_shape[-1:]
-        if self.tensor_type == 'scalar':
-            stddev_value = tf.Variable([1.], dtype=tf.float32)
-            self.stddev = tf.ones(shape,
-                                  dtype=tf.float32)
-            self.stddev *= stddev_value
-            self.trainable_weights = [stddev_value]
-            
-        else:
-            self.stddev = self.add_weight(shape=shape,
-                                         initializer=self.stddev_initializer,
-                                         regularizer=self.stddev_regularizer,
-                                         constraint=self.stddev_constraint,
-                                         name='gamma',
-                                         )
-        super(SelfAdjustingGaussianNoise, self).build(input_shape)
-
-    def call(self, inputs, training=None):
-        def noised():
-            return inputs + self.stddev*K.random_normal(shape=K.shape(inputs),
-                                                        mean=0.,
-                                                        stddev=1.)
-        return K.in_train_phase(noised, noised, training=training)
-
-    def get_config(self):
-        config = {'stddev': self.stddev}
-        base_config = super(SelfAdjustingGaussianNoise, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
-"""
-
 def make_directories(time_string = None):
     
     experiments_folder = "experiments"
@@ -160,7 +81,7 @@ def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
     
     plt.xlabel('Token')
     plt.ylabel('Probability')    
-    plt.title('softmax evolution during training')
+    plt.title('softmax evoluti\on during training')
     plt.show()
     f.savefig(name + ".pdf", bbox_inches='tight')
         

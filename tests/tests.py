@@ -869,3 +869,184 @@ def test_2d_visualization_trainInside():
 
 
 
+def test():
+    
+    max_senLen = 10  # 20 #
+    vocabSize = 100  # 1500 #
+    embDim = int(np.sqrt(vocabSize) + 1)
+    latDim = 5
+    epochs = 10
+    
+    questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen, vocabSize=vocabSize)
+    answers = to_categorical(questions[:, 1], vocabSize)
+    logger.info(answers)
+    
+    LM = predefined_model(vocabSize, embDim)
+    LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
+    LM.fit(questions, answers, epochs=epochs)    
+    
+    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen,
+                                 output_type='both',
+                                 language_model=LM,
+                                 PAD=0)
+    
+    input_questions = Input(shape=(latDim,), name='question')    
+    dense = Dense(4)(input_questions)
+    point = DAriA.decode(dense)
+    decoder_model = Model(inputs=input_questions, outputs=point[1])
+
+    _, points = random_sequences_and_points(batchSize=100, latDim=latDim, max_senLen=max_senLen)
+    pred = decoder_model.predict(points, verbose=1)
+    
+    logger.info(pred)
+    
+    showGradientsAndTrainableParams(decoder_model)
+
+
+def test_2_old():
+    vocabSize = 5  # 1500 #
+    embDim = 2
+    latDim = 4
+    max_length = 10
+    epochs = 10
+    batchSize = 3
+    
+    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_length,
+                                 output_type='both',
+                                 language_model=None,
+                                 PAD=0)
+    
+    input_questions = Input(shape=(latDim,), name='question')    
+    point = DAriA.decode(input_questions)
+    decoder_model = Model(inputs=input_questions, outputs=point[0])
+    
+    _, points = random_sequences_and_points(batchSize=batchSize, latDim=latDim, max_senLen=max_length)
+    pred_output = decoder_model.predict(points, verbose=1)
+    
+    logger.info(pred_output)
+
+    
+def test_2_tf():
+    
+    vocabSize = 6  # 1500 #
+    embDim = 4
+    latDim = 2
+    max_length = 7
+    batchSize = 3
+    PAD = 0
+    
+    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_length,
+                                 output_type='both',
+                                 language_model=None,
+                                 tf_RNN=True,
+                                 PAD=PAD)
+    
+    input_questions = Input(shape=(latDim,), name='question')    
+    point = DAriA.decode(input_questions)
+    decoder_model = Model(inputs=input_questions, outputs=point)
+    
+    _, points = random_sequences_and_points(batchSize=batchSize, latDim=latDim, max_senLen=max_length)
+    pred_output = decoder_model.predict(points, batch_size=batchSize, verbose=1)
+    
+    logger.warn(np.argmax(pred_output, axis=2))
+    
+    for p in pred_output:
+        print(p.shape)
+
+
+
+def finetuning():
+
+    vocabSize = 6  # 1500 #
+    embDim = 5
+    latDim = 2
+    max_length = 4
+    batch_size = 3
+    PAD = 0
+
+    language_model = predefined_model(vocabSize, embDim)  
+
+    sess = tf.compat.v1.Session()
+    sess.run(tf.global_variables_initializer())
+
+    _, inputs = random_sequences_and_points(batchSize=batch_size, latDim=latDim, max_senLen=max_length)
+    
+    inputs_placeholder = tf.placeholder(tf.float32, shape=(None, latDim))
+
+    curDim = tf.zeros(1)
+    timeStep = tf.zeros(1)
+    b = tf.shape(inputs_placeholder)[0]
+    one_softmax, unfolding_point = tf.zeros([b, vocabSize]), tf.zeros([b, latDim])
+    tokens = tf.zeros([b, max_length])
+
+    b = tf.shape(one_softmax)[0]
+    curDimVector = tf.tile(curDim[tf.newaxis,:], [b, 1])
+    timeStepVector = tf.tile(timeStep[tf.newaxis,:], [b, 1])
+
+    state = one_softmax, tokens, unfolding_point, curDimVector, timeStepVector
+    
+    input_point = inputs_placeholder
+    
+    all_results = []
+    for _ in tqdm(range(max_length)):
+        
+        input_point = input_point
+        one_softmax, tokens, unfolding_point, curDimVector, timeStepVector = state
+        curDim = curDimVector[0]
+        timeStep = timeStepVector[0]
+        
+        # initialization        
+        PAD_layer = Input(tensor=PAD*tf.ones_like(input_point[:,0, tf.newaxis]))
+        initial_softmax = language_model(PAD_layer)
+        
+        # FIXME: it would be interesting to consider what would happen if we feed different
+        # points within a batch
+        pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
+        
+        unfolding_point = tf.cond(pred_t, lambda: input_point, lambda: unfolding_point)
+        one_softmax = tf.cond(pred_t, lambda: initial_softmax, lambda: one_softmax)
+        #tokens = tf.cond(pred_t, lambda: start_layer, lambda: tokens, name='tokens')
+        
+        token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
+        token.set_shape((None,1))
+        token = tf.squeeze(token, axis=1)    
+        tokens = replace_column(tokens, token, timeStep)
+        
+        # get the softmax for the next iteration
+        # make sure you feed only up to the tokens that have been produced now ([:timeStep]
+        # otherwise you are feeding a sentence with tons of zeros at the end. 
+        tokens_in = Input(tensor=tokens[:, :tf.cast(tf.squeeze(timeStep), dtype=tf.int64)+1])
+        one_softmax = language_model(tokens_in)        
+        
+        # NOTE: at each iteration, change the dimension, and add a timestep
+        latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
+        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)
+        curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
+        timeStep = tf.add(timeStep, 1)
+        
+        b = tf.shape(one_softmax)[0]
+        curDimVector = tf.tile(curDim[tf.newaxis,:], [b, 1])
+        timeStepVector = tf.tile(timeStep[tf.newaxis,:], [b, 1])
+        
+        output = [one_softmax, curDim, timeStep, curDimVector, timeStepVector]
+        state = [one_softmax, tokens, unfolding_point, curDimVector, timeStepVector]
+
+        feed_data = {inputs_placeholder: inputs}
+        results = sess.run(output, feed_data)  # ([output, state], feed_data)
+        results = results #+ [results[-1].shape]
+        all_results.append([result.shape for result in results])
+        
+    t = PrettyTable()
+    for a in all_results:
+        t.add_row([*a])
+    
+    print(t)

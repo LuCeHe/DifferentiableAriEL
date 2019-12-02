@@ -4,4 +4,4 @@ data
 .pydevproject
 __pycache__
 .settings
-tests/experiments
+experiments
