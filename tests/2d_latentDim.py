@@ -155,13 +155,13 @@ def checkSpaceCoverageDecoder(LM,
                               latDim,
                               vocabSize, embDim,
                               PAD,
-                              tf_RNN=True):
+                              tf_RNN=False):
 
     _, points = random_sequences_and_points(batchSize=10000, latDim=latDim)
-    _, points = random_sequences_and_points(batchSize=10, latDim=latDim)
+    #_, points = random_sequences_and_points(batchSize=10, latDim=latDim)
     # _, points = random_sequences_and_points(batchSize=10000, latDim=latDim, hyperplane=True)
 
-    for max_senLen in range(3, 6):
+    for max_senLen in range(1, 6):
         DAriA = Differentiable_AriEL(vocabSize=vocabSize,
                                      embDim=embDim,
                                      latDim=latDim,
@@ -178,7 +178,7 @@ def checkSpaceCoverageDecoder(LM,
         if not tf_RNN:
             prediction = decoder_model.predict(points)[0].astype(int)
         else:
-            prediction = decoder_model.predict(points)[1].astype(int)
+            prediction = decoder_model.predict(points)[2].astype(int)
         
         uniques, labels, counts = np.unique(prediction, axis=0, return_inverse=True, return_counts=True)
         
@@ -190,7 +190,7 @@ def checkSpaceCoverageDecoder(LM,
         
         fig = plt.figure()    
         for i, (seq, c) in enumerate(zip(uniques, counts)):
-            if c > 20:
+            if c > 100:
                 label = labels == i
                 seq_string = ''.join([str(n) for n in seq]) 
                 
@@ -274,6 +274,40 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         plt.show()
 
 @ex.capture
+def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
+    max_senLen = 10
+    batch_size = 10
+    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen,
+                                 output_type='both',
+                                 language_model=LM,
+                                 tf_RNN=False,
+                                 PAD=PAD)
+    
+    input_questions = Input(shape=(None,), name='question')    
+    continuous_output = DAriA.encode(input_questions)
+    discrete_output = DAriA.decode(continuous_output)
+    reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
+    
+    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+    prediction = reconstruction_model.predict(sentences)[0].astype(int)
+    
+    t = PrettyTable(['sentences', 'reconstructions'])
+    for a in zip(sentences, prediction):
+        t.add_row([*a])
+    
+    print(t)
+    #print('Are reconstructions perfect? ', np.cumprod(sentences == prediction))
+
+    for s, p in zip(sentences, prediction):
+        print(s)
+        print(p)
+        print(1*(s == p))
+        print('')
+
+@ex.capture
 def threeSentencesGenerator(choices, probabilities, batchSize=3, vocabSize=5, next_timestep=True):
     
     if next_timestep:
@@ -334,4 +368,8 @@ def test_2d_visualization_trainOutside(vocabSize,
     print('\n   Check AriEL Encoder   \n')
     
     #checkSpaceCoverageEncoder(LM)
+
+    print('\n   Check AriEL AE   \n')
+    
+    #checkReconstruction(LM)
 

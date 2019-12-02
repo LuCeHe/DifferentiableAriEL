@@ -427,6 +427,7 @@ class Differentiable_AriEL(object):
             cell = DAriEL_Decoder_Layer_2(vocabSize=self.vocabSize,
                                           embDim=self.embDim,
                                           latDim=self.latDim,
+                                          max_senLen=self.max_senLen,
                                           language_model=self.language_model,
                                           PAD=self.PAD)
             rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
@@ -469,6 +470,7 @@ class DAriEL_Decoder_Layer_2(Layer):
                  vocabSize=101,
                  embDim=2,
                  latDim=4,
+                 max_senLen = 3,
                  language_model=None,
                  PAD=None,
                  **kwargs):  
@@ -477,6 +479,7 @@ class DAriEL_Decoder_Layer_2(Layer):
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
                              latDim=latDim,
+                             max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD)
         
@@ -492,7 +495,7 @@ class DAriEL_Decoder_Layer_2(Layer):
     @property
     def state_size(self):
         return (self.vocabSize,
-                1,
+                self.max_senLen,
                 self.latDim,
                 1,
                 1)
@@ -504,41 +507,48 @@ class DAriEL_Decoder_Layer_2(Layer):
     def call(self, inputs, state):
 
         input_point = inputs
-        one_softmax, tokens, unfolding_point, curDim, timeStep = state
-
+        one_softmax, tokens, unfolding_point, curDimVector, timeStepVector = state
+        
+        curDim = curDimVector[0]
+        timeStep = timeStepVector[0]
+        
         # initialization        
-        PAD_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(self.PAD)})(input_point)
-        PAD_layer = Lambda(K.squeeze, arguments={'axis': 1})(PAD_layer)
-
+        PAD_layer = Input(tensor=self.PAD*tf.ones_like(input_point[:,0, tf.newaxis]))
         initial_softmax = self.language_model(PAD_layer)
         
         # FIXME: it would be interesting to consider what would happen if we feed different points within
         # a batch
         pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
 
-        unfolding_point = tf.cond(pred_t, lambda: input_point, lambda: unfolding_point)
-        one_softmax = tf.cond(pred_t, lambda: initial_softmax, lambda: one_softmax)
-        tokens = tf.cond(pred_t, lambda: PAD_layer, lambda: tokens, name='tokens')
-        
+        unfolding_point = tf.cond(pred_t, lambda: input_point, lambda: unfolding_point, name='unfolding_point')
+        one_softmax = tf.cond(pred_t, lambda: initial_softmax, lambda: one_softmax, name='one_softmax')
+        #tokens = tf.cond(pred_t, lambda: PAD_layer, lambda: tokens, name='tokens')
+
         token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
         token.set_shape((None, 1))
-        
-        # tokens = tf.concat([tokens, token], 1) FIXME
-        tokens = token
+        token = tf.squeeze(token, axis=1)
+        tokens = replace_column(tokens, token, timeStep)
         
         # get the softmax for the next iteration
-        tokens_in = Input(tensor=tokens)
-        one_softmax = self.language_model(tokens_in)
-
+        # make sure you feed only up to the tokens that have been produced now ([:timeStep]
+        # otherwise you are feeding a sentence with tons of zeros at the end. 
+        tokens_in = Input(tensor=tokens[:, :tf.cast(tf.squeeze(timeStep), dtype=tf.int64)+1])
+        #tokens_in = Input(tensor=tokens[:, tf.cast(tf.squeeze(timeStep), dtype=tf.int64)+1, tf.newaxis])
+        one_softmax = self.language_model(tokens_in)        
+        
         # NOTE: at each iteration, change the dimension, and add a timestep
         latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
         pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)    
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
         
-        new_state = [one_softmax, tokens, unfolding_point, curDim, timeStep]
+        b = tf.shape(one_softmax)[0]
+        curDimVector = tf.tile(curDim[tf.newaxis,:], [b, 1])
+        timeStepVector = tf.tile(timeStep[tf.newaxis,:], [b, 1])
+        
+        new_state = [one_softmax, tokens, unfolding_point, curDimVector, timeStepVector]
         output = one_softmax
-
+        
         return output, new_state
           
 
@@ -631,6 +641,9 @@ def test_2_tf():
     pred_output = decoder_model.predict(points, batch_size=batchSize, verbose=1)
     
     logger.warn(np.argmax(pred_output, axis=2))
+    
+    for p in pred_output:
+        print(p.shape)
 
 
 def replace_column(matrix, new_column, r):
@@ -646,30 +659,13 @@ def replace_column(matrix, new_column, r):
 
 
 
-def replace_column_test():
-    batch_size = 2
-    max_length = 3
-    
-    sess = tf.Session()
-    timeStep = tf.cast(tf.squeeze(2*tf.ones(1)), dtype=tf.int64)
-    
-    tokens = tf.zeros([batch_size, max_length])
-    column = tf.ones([batch_size,])
-    out_tokens = replace_column(tokens, column, timeStep)
-    
-    results = sess.run([tokens, out_tokens]) 
-    
-    for r in results:
-        print('\na result')
-        print(r)
-
 def finetuning():
 
     vocabSize = 6  # 1500 #
     embDim = 5
     latDim = 2
-    max_length = 7
-    batch_size = 4
+    max_length = 4
+    batch_size = 3
     PAD = 0
 
     language_model = predefined_model(vocabSize, embDim)  
@@ -686,7 +682,12 @@ def finetuning():
     b = tf.shape(inputs_placeholder)[0]
     one_softmax, unfolding_point = tf.zeros([b, vocabSize]), tf.zeros([b, latDim])
     tokens = tf.zeros([b, max_length])
-    state = one_softmax, tokens, unfolding_point, curDim, timeStep
+
+    b = tf.shape(one_softmax)[0]
+    curDimVector = tf.tile(curDim[tf.newaxis,:], [b, 1])
+    timeStepVector = tf.tile(timeStep[tf.newaxis,:], [b, 1])
+
+    state = one_softmax, tokens, unfolding_point, curDimVector, timeStepVector
     
     input_point = inputs_placeholder
     
@@ -694,13 +695,13 @@ def finetuning():
     for _ in tqdm(range(max_length)):
         
         input_point = input_point
-        one_softmax, tokens, unfolding_point, curDim, timeStep = state
-
+        one_softmax, tokens, unfolding_point, curDimVector, timeStepVector = state
+        curDim = curDimVector[0]
+        timeStep = timeStepVector[0]
+        
         # initialization        
-        start_layer = Lambda(dynamic_fill, arguments={'d': 1, 'value': float(PAD)})(input_point)
-        start_layer = Lambda(K.squeeze, arguments={'axis': 1})(start_layer)
-
-        initial_softmax = language_model(start_layer)
+        PAD_layer = Input(tensor=PAD*tf.ones_like(input_point[:,0, tf.newaxis]))
+        initial_softmax = language_model(PAD_layer)
         
         # FIXME: it would be interesting to consider what would happen if we feed different
         # points within a batch
@@ -712,17 +713,14 @@ def finetuning():
         
         token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
         token.set_shape((None,1))
-        token = tf.squeeze(token, axis=1)
-    
-        # tokens = tf.concat([tokens, token], 1) FIXME
-        print(K.int_shape(token))
-        print(K.int_shape(tokens))
+        token = tf.squeeze(token, axis=1)    
         tokens = replace_column(tokens, token, timeStep)
-        print(K.int_shape(tokens))
         
         # get the softmax for the next iteration
-        #tokens_in = Input(tensor=tokens)
-        #one_softmax = language_model(tokens_in)        
+        # make sure you feed only up to the tokens that have been produced now ([:timeStep]
+        # otherwise you are feeding a sentence with tons of zeros at the end. 
+        tokens_in = Input(tensor=tokens[:, :tf.cast(tf.squeeze(timeStep), dtype=tf.int64)+1])
+        one_softmax = language_model(tokens_in)        
         
         # NOTE: at each iteration, change the dimension, and add a timestep
         latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
@@ -730,13 +728,17 @@ def finetuning():
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
         
-        output = [curDim, timeStep, tokens]
-        state = [one_softmax, tokens, unfolding_point, curDim, timeStep]
-        # return output, new_state
+        b = tf.shape(one_softmax)[0]
+        curDimVector = tf.tile(curDim[tf.newaxis,:], [b, 1])
+        timeStepVector = tf.tile(timeStep[tf.newaxis,:], [b, 1])
+        
+        output = [one_softmax, curDim, timeStep, curDimVector, timeStepVector]
+        state = [one_softmax, tokens, unfolding_point, curDimVector, timeStepVector]
 
         feed_data = {inputs_placeholder: inputs}
         results = sess.run(output, feed_data)  # ([output, state], feed_data)
-        all_results.append(results)
+        results = results #+ [results[-1].shape]
+        all_results.append([result.shape for result in results])
         
     t = PrettyTable()
     for a in all_results:
@@ -748,5 +750,5 @@ def finetuning():
 if __name__ == '__main__':    
 
     #replace_column_test()
-    finetuning()
-    #test_2_tf()
+    #finetuning()
+    test_2_tf()
