@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 import tensorflow as tf
 from prettytable import PrettyTable
+from nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsEncoder
 
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
@@ -17,10 +18,10 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.python.framework import function
 
-from DifferentiableAriEL.nnets.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
-    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_zeros, \
+from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
+    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_filler, dynamic_zeros, \
     pzToSymbolAndZ
-from DifferentiableAriEL.nnets.keras_layers import ExpandDims, Slice
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice
 
 seed(3)
 tf.set_random_seed(2)
@@ -36,9 +37,9 @@ def DAriEL_Encoder_model(vocabSize=101,
                          max_senLen=6,
                          PAD=None):      
     
-    layer = DAriEL_Encoder_Layer(vocabSize=vocabSize, embDim=embDim,
-                                 latDim=latDim, language_model=language_model,
-                                 max_senLen=max_senLen, PAD=PAD)        
+    layer = DAriEL_Encoder_Layer_0(vocabSize=vocabSize, embDim=embDim,
+                                   latDim=latDim, language_model=language_model,
+                                   max_senLen=max_senLen, PAD=PAD)        
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -46,7 +47,7 @@ def DAriEL_Encoder_model(vocabSize=101,
 
 
 # FIXME: encoder
-class DAriEL_Encoder_Layer(object):
+class DAriEL_Encoder_Layer_0(object):
 
     def __init__(self,
                  vocabSize=101,
@@ -80,10 +81,8 @@ class DAriEL_Encoder_Layer(object):
         expanded_os = ExpandDims(1)(softmax)
         final_softmaxes = expanded_os
         
-        question_segments = []
         for final in range(self.max_senLen):  
-            partial_question = Slice(1, 0, final + 1)(input_questions)   
-            question_segments.append(partial_question)
+            partial_question = Slice(1, 0, final + 1)(input_questions)
             softmax = self.language_model(partial_question)
             expanded_os = ExpandDims(1)(softmax)
             final_softmaxes = Concatenate(axis=1)([final_softmaxes, expanded_os])
@@ -152,3 +151,89 @@ class probsToPoint(object):
                 
         pointLatentDim = Lambda(downTheTree, name='downTheTree')([softmax, input_questions])
         return pointLatentDim
+
+
+class DAriEL_Encoder_Layer_1(object):
+    """ simpler version of the encoder where I strictly do what the algorithm
+    in the paper says """
+
+    def __init__(self,
+                 vocabSize=101,
+                 embDim=2,
+                 latDim=4,
+                 max_senLen=10,
+                 language_model=None,
+                 PAD=None,
+                 size_latDim=3,
+                 output_type='both'):
+        
+        self.__dict__.update(vocabSize=vocabSize,
+                             embDim=embDim,
+                             latDim=latDim,
+                             max_senLen=max_senLen,
+                             language_model=language_model,
+                             PAD=PAD,
+                             size_latDim=size_latDim,
+                             output_type=output_type)
+        
+        # if the input is a rnn, use that, otherwise use an LSTM
+        
+        if self.language_model == None:
+            self.language_model = predefined_model(vocabSize, embDim)          
+        
+        if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
+    
+    def __call__(self, input_question):
+        PAD_layer = Lambda(dynamic_filler, arguments={'d': 1, 'value': float(self.PAD)})(input_question)
+        
+        sentence_layer = Concatenate(axis=1)([PAD_layer, input_question])
+        sentence_layer = Lambda(tf.cast, arguments={'dtype': tf.int32, })(sentence_layer)
+        
+        low_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': 0.})(input_question)
+        upp_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': float(self.size_latDim)})(input_question)
+        
+        curDim = 0
+        for j in range(self.max_senLen - 1):  
+            s_0toj = Slice(1, 0, j + 1)(sentence_layer)
+            s_j = Slice(1, j + 1, j + 2)(sentence_layer)
+            softmax = self.language_model(s_0toj)
+            low_bound, upp_bound = UpdateBoundsEncoder(self.latDim, self.vocabSize, curDim)([low_bound, upp_bound, softmax, s_j])
+
+            # NOTE: at each iteration, change the dimension
+            curDim += 1
+            if curDim >= self.latDim:
+                curDim = 0
+
+        z = tf.add(low_bound, upp_bound) / 2
+        
+        return z
+
+
+def test():
+    
+    vocabSize, batch_size, max_senLen = 3, 6, 5
+    latDim = 2
+                     
+    input_questions = Input((None,))
+    encoded = DAriEL_Encoder_Layer_1(PAD=0,
+                                     vocabSize=vocabSize,
+                                     latDim=latDim,
+                                     max_senLen=max_senLen,)(input_questions)
+    model = Model(input_questions, encoded)
+    
+    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+
+    prediction = model.predict(sentences)
+    
+    t = PrettyTable()
+    
+    results = [sentences] + [prediction]
+    for a in zip(*results):
+        t.add_row([y for y in a])
+    
+    t.add_row([y.shape for y in results])
+    print(t)
+    
+    
+if __name__ == '__main__':
+    test()

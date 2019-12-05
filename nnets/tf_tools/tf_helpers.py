@@ -26,6 +26,9 @@ def dynamic_fill(x, d, value):
     batch_size = tf.shape(x)[0]
     return tf.fill(tf.stack([batch_size, 1, d]), value)
 
+def dynamic_filler(x, d, value):
+    batch_size = tf.shape(x)[0]
+    return tf.fill(tf.stack([batch_size, d]), value)
 
 def dynamic_one_hot(x, d, pos):
     batch_size = tf.shape(x)[0]
@@ -106,14 +109,14 @@ def argmaxPseudoGrad(cumsum, cumsum_exclusive, value_of_interest, grad):
 
 # this method seems to be quite unstable given the division by probabilities
 @function.Defun(grad_func=argmaxPseudoGrad)
-def pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest):
-    c_minus_v = tf.subtract(cumsum, value_of_interest)
-    ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
+def pzToSymbol_withArgmax(scaled_cumsum, scaled_cumsum_exclusive, value_of_interest):
+    c_minus_v = tf.subtract(scaled_cumsum, value_of_interest)
+    ce_minus_c = tf.subtract(scaled_cumsum_exclusive, value_of_interest)
     signed_xor = c_minus_v * ce_minus_c
     symbol = tf.argmin(signed_xor, axis=1)
 
-    symbol = tf.expand_dims(symbol, axis=1)
-    symbol = tf.cast(symbol, dtype=tf.float32)
+    #symbol = tf.expand_dims(symbol, axis=1)
+    #symbol = tf.cast(symbol, dtype=tf.float32)
     return symbol
 
 
@@ -168,6 +171,8 @@ def pzToSymbolAndZ(inputs):
     # determine the token selected (2 steps: xor and token)
     # differentiable xor (instead of tf.logical_xor)
     token = pzToSymbol_withArgmax(cumsum, cumsum_exclusive, value_of_interest)
+    token = tf.expand_dims(token, axis=1)
+    token = tf.cast(token, dtype=tf.float32)    
     oh_symbol = onehot_pseudoD(token, cumsum)
         
     # expand dimensions to be able to perform a proper matrix 

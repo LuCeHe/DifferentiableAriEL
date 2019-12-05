@@ -14,19 +14,15 @@ import numpy as np
 import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
 
-import tensorflow.keras.backend as K
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, concatenate, Input, Conv2D, Embedding, \
-                         Bidirectional, LSTM, Lambda, TimeDistributed, \
-                         RepeatVector, Activation, GaussianNoise, Flatten, \
-                         Reshape
+from tensorflow.keras.layers import Input
  
 from tensorflow.keras.models import load_model                        
 from tensorflow.keras.utils import to_categorical
 
-from nnets.DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL, \
-    predefined_model, DAriEL_Encoder_Layer, DAriEL_Decoder_Layer
+from nnets.DAriEL import Differentiable_AriEL
+from nnets.tf_tools.keras_layers import predefined_model
 
 import os, sys, copy, logging
 import pathlib
@@ -57,7 +53,7 @@ class CustomFileStorageObserver(FileStorageObserver):
 
 ex = Experiment('LSNN_AE')
 # ex.observers.append(FileStorageObserver.create("experiments"))
-ex.observers.append(CustomFileStorageObserver.create("experiments"))
+ex.observers.append(CustomFileStorageObserver.create("../experiments"))
 
 # ex.observers.append(MongoObserver())
 ex.captured_out_filter = apply_backspaces_and_linefeeds
@@ -91,7 +87,7 @@ def cfg():
                ]
     probabilities = [.25, .25, .25, .25]
     
-    latDim = 2
+    latDim = 16 #2
     vocabSize = np.max(np.max(choices)) + 1
     embDim = int(np.sqrt(vocabSize) + 1)
 
@@ -115,41 +111,6 @@ def choices2NextStep(choices, probabilities):
     return ns_choices, ns_probabilities
 
 
-def random_sequences_and_points(batchSize=3,
-                                latDim=4,
-                                max_senLen=6,
-                                repeated=False,
-                                vocabSize=2,
-                                hyperplane=False):
-    
-    if not repeated:
-        questions = []
-        points = np.random.rand(batchSize, latDim)
-        for _ in range(batchSize):
-            sentence_length = max_senLen  # np.random.choice(max_senLen)
-            randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
-            # EOS = (vocabSize+1)*np.ones(1)
-            # randomQ = np.concatenate((randomQ, EOS))
-            questions.append(randomQ)
-    else:
-        point = np.random.rand(1, latDim)
-        sentence_length = max_senLen  # np.random.choice(max_senLen)
-        question = np.random.choice(vocabSize, sentence_length)  # + 1
-        question = np.expand_dims(question, axis=0)
-        points = np.repeat(point, repeats=[batchSize], axis=0)
-        questions = np.repeat(question, repeats=[batchSize], axis=0)
-        
-    padded_questions = pad_sequences(questions)
-    
-    if hyperplane:
-        point_1 = np.random.rand(1, 1)
-        point_1 = np.repeat(point_1, repeats=[batchSize], axis=0)
-        point_2 = np.random.rand(batchSize, latDim - 1)
-        points = np.concatenate([point_1, point_2], axis=1)
-        
-    return padded_questions, points
-
-
 @ex.capture
 def checkSpaceCoverageDecoder(LM,
                               latDim,
@@ -157,10 +118,8 @@ def checkSpaceCoverageDecoder(LM,
                               PAD,
                               tf_RNN=False):
 
-    _, points = random_sequences_and_points(batchSize=10000, latDim=latDim)
-    #_, points = random_sequences_and_points(batchSize=10, latDim=latDim)
-    # _, points = random_sequences_and_points(batchSize=10000, latDim=latDim, hyperplane=True)
-
+    points = np.random.rand(10000, latDim)
+    
     for max_senLen in range(1, 6):
         DAriA = Differentiable_AriEL(vocabSize=vocabSize,
                                      embDim=embDim,
@@ -168,7 +127,7 @@ def checkSpaceCoverageDecoder(LM,
                                      max_senLen=max_senLen,
                                      output_type='both',
                                      language_model=LM,
-                                     tf_RNN=tf_RNN,
+                                     decoder_type=0,
                                      PAD=PAD)
         
         input_point = Input(shape=(latDim,), name='question')
@@ -220,7 +179,6 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
             c1.append(c)
             
     c2follow = choices[-1]
-
     
     c2 = [c2follow[:2]]
     c3 = [c2follow[:2], c2follow[:3]]
@@ -231,8 +189,6 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         last_c = ci[-1]
         for i in range(vocabSize):
             ci.append(last_c + [i])
-    
-
     
     for choices in [c0, c1, c2, c3, c4]:
         choices_strings = [''.join([str(n) for n in el]) for el in choices]
@@ -246,6 +202,7 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
                                          max_senLen=max_senLen,
                                          output_type='both',
                                          language_model=LM,
+                                         encoder_type=1,
                                          PAD=PAD)
             
             input_questions = Input(shape=(None,), name='question')    
@@ -258,9 +215,9 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         
         prediction = np.concatenate(predictions, axis=0)
     
-        #print(prediction)
+        # print(prediction)
         
-        #uniques, labels = np.unique(padded_q, axis=0, return_inverse=True)
+        # uniques, labels = np.unique(padded_q, axis=0, return_inverse=True)
         
         for sample, string in zip(prediction, choices_strings):
             plt.scatter(sample[0], sample[1],
@@ -273,17 +230,23 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         axes.set_ylim([0 - eps, 1 + eps])
         plt.show()
 
+
 @ex.capture
 def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
-    max_senLen = 10
-    batch_size = 10
+    max_senLen = 100
+    batch_size = 20
+    encoder_type = 0
+    decoder_type = 0
+    #vocabSize = 10
     DAriA = Differentiable_AriEL(vocabSize=vocabSize,
                                  embDim=embDim,
                                  latDim=latDim,
                                  max_senLen=max_senLen,
                                  output_type='both',
                                  language_model=LM,
-                                 tf_RNN=False,
+                                 encoder_type=encoder_type,
+                                 decoder_type=decoder_type,
+                                 size_latDim=1e6,
                                  PAD=PAD)
     
     input_questions = Input(shape=(None,), name='question')    
@@ -292,21 +255,29 @@ def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
     reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
     
     sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
-    prediction = reconstruction_model.predict(sentences)[0].astype(int)
+    if not decoder_type == 2:
+        prediction = reconstruction_model.predict(sentences)[0].astype(int)
+    else:
+        prediction = reconstruction_model.predict(sentences).astype(int)
     
     t = PrettyTable(['sentences', 'reconstructions'])
     for a in zip(sentences, prediction):
         t.add_row([*a])
     
     print(t)
-    #print('Are reconstructions perfect? ', np.cumprod(sentences == prediction))
-
+    # print('Are reconstructions perfect? ', np.cumprod(sentences == prediction))
+    
+    tot_ = 0
+    score = 0
     for s, p in zip(sentences, prediction):
-        print(s)
-        print(p)
-        print(1*(s == p))
-        print('')
+        # print(s)
+        # print(p)
+        score += np.sum(1 * (s == p))
+        tot_ += len(s)
+        # print('')
+    print(score / tot_)
 
+    
 @ex.capture
 def threeSentencesGenerator(choices, probabilities, batchSize=3, vocabSize=5, next_timestep=True):
     
@@ -363,13 +334,13 @@ def test_2d_visualization_trainOutside(vocabSize,
 
     print('\n   Check AriEL Decoder   \n')
 
-    checkSpaceCoverageDecoder(LM)
+    # checkSpaceCoverageDecoder(LM)
 
     print('\n   Check AriEL Encoder   \n')
     
-    #checkSpaceCoverageEncoder(LM)
+    # checkSpaceCoverageEncoder(LM)
 
     print('\n   Check AriEL AE   \n')
     
-    #checkReconstruction(LM)
+    checkReconstruction(LM)
 

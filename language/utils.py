@@ -29,20 +29,19 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
-
 import os
 import numpy as np
 from time import strftime, localtime
 
 import tensorflow.keras.backend as K
-#from tensorflow.keras.legacy import interfaces
-#from tensorflow.keras.layers import Layer
-#from tensorflow.keras.engine import InputSpec
+# from tensorflow.keras.legacy import interfaces
+# from tensorflow.keras.layers import Layer
+# from tensorflow.keras.engine import InputSpec
 import tensorflow as tf
+from celottil.keras.keras.preprocessing.sequence import pad_sequences
 
 
-def make_directories(time_string = None):
+def make_directories(time_string=None):
     
     experiments_folder = "experiments"
     if not os.path.isdir(experiments_folder):
@@ -69,7 +68,6 @@ def make_directories(time_string = None):
     return experiment_folder
 
 
-
 def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
     import matplotlib.pylab as plt
     
@@ -77,16 +75,12 @@ def plot_softmax_evolution(softmaxes_list, name='softmaxes'):
     index = range(len(softmaxes_list[0]))
     for softmax in softmaxes_list:
         plt.bar(index, softmax)
-        
     
     plt.xlabel('Token')
     plt.ylabel('Probability')    
     plt.title('softmax evoluti\on during training')
     plt.show()
     f.savefig(name + ".pdf", bbox_inches='tight')
-        
-    
-    
     
     
 def checkDuringTraining(generator_class, indices_sentences, encoder_model, decoder_model, batchSize, latDim):
@@ -105,7 +99,6 @@ def checkDuringTraining(generator_class, indices_sentences, encoder_model, decod
     indicess, softmaxes = decoder_model.predict(noise)
     sentences_generated = generator_class.indicesToSentences(indicess)
 
-
     from prettytable import PrettyTable
 
     table = PrettyTable(['original', 'reconstructed', 'generated'])
@@ -123,4 +116,38 @@ def checkDuringTraining(generator_class, indices_sentences, encoder_model, decod
     
     return softmaxes
 
+
+def random_sequences_and_points(batchSize=3,
+                                latDim=4,
+                                max_senLen=6,
+                                repeated=False,
+                                vocabSize=2,
+                                hyperplane=False):
     
+    if not repeated:
+        questions = []
+        points = np.random.rand(batchSize, latDim)
+        for _ in range(batchSize):
+            sentence_length = max_senLen  # np.random.choice(max_senLen)
+            randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
+            # EOS = (vocabSize+1)*np.ones(1)
+            # randomQ = np.concatenate((randomQ, EOS))
+            questions.append(randomQ)
+    else:
+        point = np.random.rand(1, latDim)
+        sentence_length = max_senLen  # np.random.choice(max_senLen)
+        question = np.random.choice(vocabSize, sentence_length)  # + 1
+        question = np.expand_dims(question, axis=0)
+        points = np.repeat(point, repeats=[batchSize], axis=0)
+        questions = np.repeat(question, repeats=[batchSize], axis=0)
+        
+    padded_questions = pad_sequences(questions)
+    
+    if hyperplane:
+        point_1 = np.random.rand(1, 1)
+        point_1 = np.repeat(point_1, repeats=[batchSize], axis=0)
+        point_2 = np.random.rand(batchSize, latDim - 1)
+        points = np.concatenate([point_1, point_2], axis=1)
+        
+    return padded_questions, points
+
