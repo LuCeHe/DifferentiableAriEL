@@ -1,5 +1,8 @@
 import sys, os
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+
 import numpy
 numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
 
@@ -21,8 +24,8 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.models import load_model                        
 from tensorflow.keras.utils import to_categorical
 
-from nnets.DAriEL import Differentiable_AriEL
-from nnets.tf_tools.keras_layers import predefined_model
+from DifferentiableAriEL.nnets.AriEL import AriEL
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 import os, sys, copy, logging
 import pathlib
@@ -87,7 +90,7 @@ def cfg():
                ]
     probabilities = [.25, .25, .25, .25]
     
-    latDim = 16 #2
+    latDim = 16  # 2
     vocabSize = np.max(np.max(choices)) + 1
     embDim = int(np.sqrt(vocabSize) + 1)
 
@@ -121,14 +124,16 @@ def checkSpaceCoverageDecoder(LM,
     points = np.random.rand(10000, latDim)
     
     for max_senLen in range(1, 6):
-        DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                     embDim=embDim,
-                                     latDim=latDim,
-                                     max_senLen=max_senLen,
-                                     output_type='both',
-                                     language_model=LM,
-                                     decoder_type=0,
-                                     PAD=PAD)
+        DAriA = AriEL(
+            vocabSize=vocabSize,
+            embDim=embDim,
+            latDim=latDim,
+            max_senLen=max_senLen,
+            output_type='both',
+            language_model=LM,
+            decoder_type=0,
+            PAD=PAD
+            )
         
         input_point = Input(shape=(latDim,), name='question')
         point = DAriA.decode(input_point)
@@ -196,14 +201,16 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         predictions = []
         for sentence in choices:
             max_senLen = len(sentence)
-            DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                         embDim=embDim,
-                                         latDim=latDim,
-                                         max_senLen=max_senLen,
-                                         output_type='both',
-                                         language_model=LM,
-                                         encoder_type=1,
-                                         PAD=PAD)
+            DAriA = AriEL(
+                vocabSize=vocabSize,
+                embDim=embDim,
+                latDim=latDim,
+                max_senLen=max_senLen,
+                output_type='both',
+                language_model=LM,
+                encoder_type=1,
+                PAD=PAD
+                )
             
             input_questions = Input(shape=(None,), name='question')    
             continuous_output = DAriA.encode(input_questions)
@@ -237,17 +244,19 @@ def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
     batch_size = 20
     encoder_type = 0
     decoder_type = 0
-    #vocabSize = 10
-    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
-                                 max_senLen=max_senLen,
-                                 output_type='both',
-                                 language_model=LM,
-                                 encoder_type=encoder_type,
-                                 decoder_type=decoder_type,
-                                 size_latDim=1e6,
-                                 PAD=PAD)
+    # vocabSize = 10
+    DAriA = AriEL(
+        vocabSize=vocabSize,
+        embDim=embDim,
+        latDim=latDim,
+        max_senLen=max_senLen,
+        output_type='both',
+        language_model=LM,
+        encoder_type=encoder_type,
+        decoder_type=decoder_type,
+        size_latDim=1e6,
+        PAD=PAD
+        )
     
     input_questions = Input(shape=(None,), name='question')    
     continuous_output = DAriA.encode(input_questions)

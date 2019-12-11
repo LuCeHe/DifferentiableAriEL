@@ -20,10 +20,9 @@ from tensorflow.python.framework import function
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
     pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_filler, dynamic_zeros, \
     pzToSymbolAndZ
-from nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsDecoder, ExpandDims, \
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsDecoder, ExpandDims, \
     Slice, FindSymbolAndBounds, ReplaceColumn
-from nnets.tf_tools.tf_helpers import replace_column
-from language.utils import random_sequences_and_points
+from DifferentiableAriEL.language.utils import random_sequences_and_points
 
 seed(3)
 tf.set_random_seed(2)

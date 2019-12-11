@@ -40,9 +40,6 @@ import logging
 from enum import Enum
 from nltk.grammar import Nonterminal, CFG, Production
 
-
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -176,10 +173,11 @@ def addEndTokenToGrammar(grammar, endToken):
 
 class Vocabulary(object):
     
+    padToken = '<PAD>'
     startToken = '<START>'
     endToken = '<END>'
-    padToken = '<PAD>'
     unkToken = '<UNK>'
+    convenienceTokens = [padToken, startToken, endToken, unkToken]
 
     def __init__(self, tokens):
 
@@ -187,11 +185,16 @@ class Vocabulary(object):
             tokens.remove(Vocabulary.endToken)
 
         indicesByTokens = dict()
-        tokens = [Vocabulary.endToken] + sorted(list(tokens))
+        tokens = Vocabulary.convenienceTokens + sorted(list(tokens))
         for i, token in enumerate(tokens):
             indicesByTokens[token] = i
         self.__dict__.update(tokens=tokens,
                              indicesByTokens=indicesByTokens)
+        
+        self.padIndex = indicesByTokens[self.padToken]
+        self.startIndex = indicesByTokens[self.startToken]
+        self.endIndex = indicesByTokens[self.endToken]
+        self.unkIndex = indicesByTokens[self.unkToken]
 
     def __eq__(self, other):
         return self.tokens == other.tokens
@@ -217,7 +220,7 @@ class Vocabulary(object):
         return self.tokens[idx]
 
     def indicesToTokens(self, indices, offset=0):
-        return [self.tokens[i-offset] for i in indices]
+        return [self.tokens[i - offset] for i in indices]
 
     def tokenToIndex(self, token, offset=0):
         return self.indicesByTokens[token] + offset
@@ -275,8 +278,8 @@ class Vocabulary(object):
         grammar = nltk.data.load('file:' + grammarCfg)
         return Vocabulary.fromGrammar(grammar)
 
-    #@staticmethod
-    #def fromOracle():
+    # @staticmethod
+    # def fromOracle():
     #    oracle = Oracle()
     #    tokens = oracle.getCompleteVocabulary()
     #    return Vocabulary(tokens)
@@ -602,3 +605,5 @@ class GrammarLanguageModel(LanguageModel):
             elif n.nodeType == NodeType.terminalgroup:
                 tokens.extend(list(n.startTokens))
         return set(tokens)
+    
+    

@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 import tensorflow as tf
 from prettytable import PrettyTable
-from nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsEncoder
 
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
@@ -21,7 +20,7 @@ from tensorflow.python.framework import function
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
     pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_filler, dynamic_zeros, \
     pzToSymbolAndZ
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
 
 seed(3)
 tf.set_random_seed(2)

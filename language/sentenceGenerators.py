@@ -29,17 +29,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
-
 import numpy as np
 from nltk import CFG
-from nlp import Vocabulary, NltkGrammarSampler
 from nltk.parse.generate import generate
 import string
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
 from tensorflow.python.framework.test_ops import list_input
-
+import gzip
+from subprocess import Popen, PIPE
+from DifferentiableAriEL.language.nlp import tokenize, Vocabulary, NltkGrammarSampler
+from _tracemalloc import start
 
 # grammar cannot have recursion!
 grammar = CFG.fromstring("""
@@ -52,11 +52,10 @@ grammar = CFG.fromstring("""
                          """)
 
 
-
-def _basicGenerator(grammar, batch_size = 3):
-    #sentences = []
+def _basicGenerator(grammar, batch_size=3):
+    # sentences = []
     while True:
-        yield [[' '.join(sentence)] for sentence in generate(grammar, n = batch_size)]
+        yield [[' '.join(sentence)] for sentence in generate(grammar, n=batch_size)]
 
 
 def sentencesToCharacters(sentences):
@@ -80,44 +79,41 @@ def sentencesToCharacters(sentences):
     return charSentences
     
     
-    
-def _charactersGenerator(grammar, batch_size = 5):
+def _charactersGenerator(grammar, batch_size=5):
     
     # FIXME: the generator is not doing what it should be doing, 
     # since ell the batches are the same
     # but it's fine for now since this is only a toy scenario
     
     while True:
-        sentences = [[' '.join(sentence)] for sentence in generate(grammar, n = batch_size)]
+        sentences = [[' '.join(sentence)] for sentence in generate(grammar, n=batch_size)]
         yield sentencesToCharacters(sentences)
 
 
-
-def _charactersNumsGenerator(grammar, batch_size = 5):
+def _charactersNumsGenerator(grammar, batch_size=5):
     
     tokens = sorted(list(string.printable))
-    #print(tokens)
+    # print(tokens)
     
     vocabulary = Vocabulary(tokens)
-    #print(vocabulary.getMaxVocabularySize())
-    
+    # print(vocabulary.getMaxVocabularySize())
     
     # FIXME: the generator is not doing what it should be doing, 
     # since ell the batches are the same
     # but it's fine for now since this is only a toy scenario
     
     while True:
-        sentences = [[' '.join(sentence)] for sentence in generate(grammar, n = batch_size)]
-        #print(sentences)
+        sentences = [[' '.join(sentence)] for sentence in generate(grammar, n=batch_size)]
+        # print(sentences)
         sentencesCharacters = sentencesToCharacters(sentences)
         sentencesIndices = [vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
         padded_indices = pad_sequences(sentencesIndices)
         yield padded_indices
     
     
-    
 class c2n_generator(object):
-    def __init__(self, grammar, batch_size = 5, maxlen=None, categorical=False):
+
+    def __init__(self, grammar, batch_size=5, maxlen=None, categorical=False):
         
         self.grammar = grammar
         self.batch_size = batch_size
@@ -128,8 +124,8 @@ class c2n_generator(object):
         tokens = tempVocabulary.tokens[1:]
         tokens = set(sorted(' '.join(tokens)))
         self.vocabulary = Vocabulary(tokens)
-        #self.tokens = sorted(list(string.printable))
-        #self.vocabulary = Vocabulary(self.tokens)
+        # self.tokens = sorted(list(string.printable))
+        # self.vocabulary = Vocabulary(self.tokens)
         print('')
         print(self.vocabulary.indicesByTokens)
         print('')
@@ -137,9 +133,8 @@ class c2n_generator(object):
         self.vocabSize = len(self.vocabulary.indicesByTokens)
         self.startId = self.vocabulary.tokenToIndex(self.vocabulary.endToken)
         
-        #self.nltk_generate = generate(self.grammar, n = self.batch_size)
+        # self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
-        
         
     def generator(self):
         while True:
@@ -149,33 +144,32 @@ class c2n_generator(object):
             indices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
             
             # before: good for sequence2sequence
-            #indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            #indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            #in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            #out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            
+            # indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             
             # after: not good, just to pick one of the two
-            #indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            #indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            in_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
             out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             
             if not self.categorical:
                 yield in_indices, out_indices
             else:
-                categorical_indices = to_categorical(out_indices, num_classes = self.vocabSize)
+                categorical_indices = to_categorical(out_indices, num_classes=self.vocabSize)
                 yield in_indices, categorical_indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
-            indices =  [[int(i) for i in list_idx] for list_idx in indices]
+            indices = [[int(i) for i in list_idx] for list_idx in indices]
         return self.vocabulary.indicesToSentences(indices, offset=offset)
-        
 
     
 class next_character_generator(object):
-    def __init__(self, grammar, batch_size = 5, maxlen=None, categorical=False):
+
+    def __init__(self, grammar, batch_size=5, maxlen=None, categorical=False):
         
         self.grammar = grammar
         self.batch_size = batch_size
@@ -186,8 +180,8 @@ class next_character_generator(object):
         tokens = tempVocabulary.tokens[1:]
         tokens = set(sorted(' '.join(tokens)))
         self.vocabulary = Vocabulary(tokens)
-        #self.tokens = sorted(list(string.printable))
-        #self.vocabulary = Vocabulary(self.tokens)
+        # self.tokens = sorted(list(string.printable))
+        # self.vocabulary = Vocabulary(self.tokens)
         print('')
         print(self.vocabulary.indicesByTokens)
         print('')
@@ -195,17 +189,15 @@ class next_character_generator(object):
         self.vocabSize = len(self.vocabulary.indicesByTokens)
         self.startId = self.vocabulary.tokenToIndex(self.vocabulary.endToken)
         
-        #self.nltk_generate = generate(self.grammar, n = self.batch_size)
+        # self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
-        
         
     def generator(self):
         while True:
             sentences = [[''.join(sentence)] for sentence in self.sampler.generate(self.batch_size)]
             sentencesCharacters = sentencesToCharacters(sentences)
             # offset=1 to take into account padding
-            #indices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
-            
+            # indices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentencesCharacters]
             
             import numpy as np
             
@@ -220,24 +212,25 @@ class next_character_generator(object):
                 
                 list_input.append(input_indices)
                 list_output.append(next_token)
-                        
             
-            in_indices  = pad_sequences(list_input, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            in_indices = pad_sequences(list_input, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             out_indices = np.array(list_output)
             
             if not self.categorical:
                 yield in_indices, out_indices
             else:
-                categorical_indices = to_categorical(out_indices, num_classes = self.vocabSize)
+                categorical_indices = to_categorical(out_indices, num_classes=self.vocabSize)
                 yield in_indices, categorical_indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
-            indices =  [[int(i) for i in list_idx] for list_idx in indices]
+            indices = [[int(i) for i in list_idx] for list_idx in indices]
         return self.vocabulary.indicesToSentences(indices, offset=offset)
+
         
 class next_word_generator(object):
-    def __init__(self, grammar, batch_size = 5, maxlen=None, categorical=False):
+
+    def __init__(self, grammar, batch_size=5, maxlen=None, categorical=False):
         
         self.grammar = grammar
         self.batch_size = batch_size
@@ -246,8 +239,8 @@ class next_word_generator(object):
         
         self.vocabulary = Vocabulary.fromGrammar(grammar)
         
-        #self.tokens = sorted(list(string.printable))
-        #self.vocabulary = Vocabulary(self.tokens)
+        # self.tokens = sorted(list(string.printable))
+        # self.vocabulary = Vocabulary(self.tokens)
         print('')
         print(self.vocabulary.indicesByTokens)
         print('')
@@ -255,14 +248,13 @@ class next_word_generator(object):
         self.vocabSize = len(self.vocabulary.indicesByTokens)
         self.startId = self.vocabulary.tokenToIndex(self.vocabulary.endToken)
         
-        #self.nltk_generate = generate(self.grammar, n = self.batch_size)
+        # self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
-        
         
     def generator(self):
         while True:
             sentences = [sentence.split(' ') for sentence in self.sampler.generate(self.batch_size)]
-            #sentencesCharacters = sentencesToCharacters(sentences)
+            # sentencesCharacters = sentencesToCharacters(sentences)
             # offset=1 to take into account padding
             indices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentences]
             
@@ -276,27 +268,25 @@ class next_word_generator(object):
                 
                 list_input.append(input_indices)
                 list_output.append(next_token)
-                        
             
-            in_indices  = pad_sequences(list_input, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            in_indices = pad_sequences(list_input, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             out_indices = np.array(list_output)
             
             if not self.categorical:
                 yield in_indices, out_indices
             else:
-                categorical_indices = to_categorical(out_indices, num_classes = self.vocabSize)
+                categorical_indices = to_categorical(out_indices, num_classes=self.vocabSize)
                 yield in_indices, categorical_indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
-            indices =  [[int(i) for i in list_idx] for list_idx in indices]
+            indices = [[int(i) for i in list_idx] for list_idx in indices]
         return self.vocabulary.indicesToSentences(indices, offset=offset)
 
 
-
-
 class w2n_generator(object):
-    def __init__(self, grammar, batch_size = 5, maxlen=None, categorical=False):
+
+    def __init__(self, grammar, batch_size=5, maxlen=None, categorical=False):
         
         self.grammar = grammar
         self.batch_size = batch_size
@@ -312,136 +302,146 @@ class w2n_generator(object):
         self.vocabSize = len(self.vocabulary.indicesByTokens)
         self.startId = self.vocabulary.tokenToIndex(self.vocabulary.endToken)
         
-        #self.nltk_generate = generate(self.grammar, n = self.batch_size)
+        # self.nltk_generate = generate(self.grammar, n = self.batch_size)
         self.sampler = NltkGrammarSampler(self.grammar)
-        
         
     def generator(self):
         while True:
             sentences = [sentence.split(' ') for sentence in self.sampler.generate(self.batch_size)]
-            #sentencesCharacters = sentencesToCharacters(sentences)
+            # sentencesCharacters = sentencesToCharacters(sentences)
             # offset=1 to take into account padding
             indices = [self.vocabulary.tokensToIndices(listOfTokens) for listOfTokens in sentences]
             
             # before: good for sequence2sequence
-            #indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            #indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            #in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            #out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            
+            # indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             
             # after: not good, just to pick one of the two
-            #indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
-            #indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
-            in_indices  = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-2, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
+            # indices = pad_sequences(indices, maxlen=self.maxlen-1, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
+            in_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='pre')
             out_indices = pad_sequences(indices, maxlen=self.maxlen, value=self.vocabulary.indicesByTokens[self.vocabulary.endToken], padding='post')
             
             if not self.categorical:
                 yield in_indices, out_indices
             else:
-                categorical_indices = to_categorical(out_indices, num_classes = self.vocabSize)
+                categorical_indices = to_categorical(out_indices, num_classes=self.vocabSize)
                 yield in_indices, categorical_indices
             
     def indicesToSentences(self, indices, offset=0):
         if not isinstance(indices[0][0], int):
-            indices =  [[int(i) for i in list_idx] for list_idx in indices]
+            indices = [[int(i) for i in list_idx] for list_idx in indices]
         return self.vocabulary.indicesToSentences(indices, offset=offset)
 
+
+def generateFromGzip(gzipDatasetFilepath, batchSize):    
     
-def test_generator(grammar):
-    
-    print('Testing basic generator')
-    generator = _basicGenerator(grammar)
-    print(next(generator))
-    print('')
-    print(next(generator))
-    print('')
-    
-    
-    print('Testing character level generator')
-    generator = _charactersGenerator(grammar)
-    for sentence in next(generator): print(sentence)
-    print('')
-    for sentence in next(generator): print(sentence)
-    print('')
-    
-    
-    print('Testing character to number generator')
-    generator = _charactersNumsGenerator(grammar)
-    for sentence in next(generator): print(sentence)
-    print('')
-    for sentence in next(generator): print(sentence)
-    print('')
+    # read last sentence to reinitialize the generator once it's found
+    this_gzip = Popen(['gzip', '-dc', gzipDatasetFilepath], stdout=PIPE)
+    tail = Popen(['tail', '-1'], stdin=this_gzip.stdout, stdout=PIPE)
+    last_sentence = tail.communicate()[0][:-2]
+
+    f = gzip.open(gzipDatasetFilepath, 'rb')
+
+    while True:                
+        sentences = []
+        for line in f:
+            sentence = line.strip().decode("utf-8")
+            sentences.append(sentence)
+            
+            if sentence == last_sentence:
+                sentences = []
+                f = gzip.open(gzipDatasetFilepath, 'rb')
+            
+            if len(sentences) >= batchSize:
+                batch = sentences
+                sentences = []
+                yield batch
 
 
-
-def test_sentencesToCharacters():
-    sentences = [['the dog  chased a cat'],
-                 ['the dog sat in a cat'],
-                 ['the cat sat on a cat']]
-                
-    print(sentencesToCharacters(sentences))
+def SentenceToIndicesGenerator(sentence_generator, vocabulary, maxSentenceLen=None):
     
-
-def test_generator_class():
-    categorical = False
-    generator_class = c2n_generator(grammar, maxlen=23, categorical=categorical)
-    generator = generator_class.generator()
-    
-    print(generator_class.vocabSize)
-    
-    indicess = next(generator)
-    # if categorical
-    #if categorical: argmax etc...
-    sentences = indicess
-    #sentences = generator_class.indicesToSentences(indicess)
-    
-    print('')
-    for indices, sentence in zip(indicess, sentences): 
-        print(indices)
-        #print(sentence)
-        print('')
-    print('')
-    print('')
-    #print(len(indicess.shape))
-    #(5, 20, 13) if categorical
-    #(5, 20)
-    
+    PAD = vocabulary.indicesByTokens[vocabulary.padToken]
+    START = vocabulary.indicesByTokens[vocabulary.startToken]
+    END = vocabulary.indicesByTokens[vocabulary.endToken]
+    while True:
+        sentences = next(sentence_generator)
+        # NOTE: use offset to reserve a place for the masking symbol at
+        # zero
+        indices = [vocabulary.tokensToIndices(tokenize(sentence))
+                   for sentence in sentences]
+        
+        padded = pad_sequences([[PAD, START] + tokens + [END] for tokens in indices],
+                                      maxlen=maxSentenceLen,
+                                      value=PAD,
+                                      padding='pre')
+        yield padded
 
 
-def test_nt_generator_class():
-    categorical = True
-    generator_class = next_character_generator(grammar, batch_size=1, maxlen=23, categorical=categorical)
-    generator = generator_class.generator()
+def IndicesToNextStepGenerator(indices_generator, vocabSize=None):
+    while True:
+        indices = next(indices_generator)
+        maxlen = indices.shape[1]
+        column = np.random.randint(low=1, high=maxlen)
+        model_input = indices[:, :column]
+        model_output = indices[:, column, np.newaxis]
+        if isinstance(vocabSize, int):
+            model_output = to_categorical(model_output, num_classes=vocabSize)  
+        yield model_input, model_output
+
+        
+def GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batchSize):
+    # check REBER generator
+    # grammar_filepath = '../data/simplerREBER_grammar.cfg'
+    vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
+    # gzip_filepath = '../data/REBER_biased_train.gz'
+    # batchSize = w    3
+    vocabSize = vocabulary.getMaxVocabularySize()
     
-    
-    indicess = next(generator)
-    
-    print(indicess[0])
-    print(indicess[1])
+    generatorSentences = generateFromGzip(
+        gzipDatasetFilepath=gzip_filepath,
+        batchSize=batchSize
+        )
+    generatorIndices = SentenceToIndicesGenerator(
+        sentence_generator=generatorSentences,
+        vocabulary=vocabulary
+        )
+    generatorNextStep = IndicesToNextStepGenerator(
+        generatorIndices,
+        vocabSize
+        )
+    while True:
+        generation = next(generatorNextStep)        
+        yield generation
 
 
-def test_nw_generator_class():
-    categorical = True    
-    generator_class = next_word_generator(grammar, batch_size=2, maxlen=23, categorical=categorical)
-    generator = generator_class.generator()
+def GzipToIndicesGenerator(gzip_filepath, grammar_filepath, batchSize):
+    vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     
-    indicess = next(generator)
-    
-    print(indicess[0])
-    print(indicess[1])
+    generatorSentences = generateFromGzip(
+        gzipDatasetFilepath=gzip_filepath,
+        batchSize=batchSize
+        )
+    generatorIndices = SentenceToIndicesGenerator(
+        sentence_generator=generatorSentences,
+        vocabulary=vocabulary
+        )
+    while True:
+        generation = next(generatorIndices)        
+        yield generation
 
 
 if __name__ == '__main__':
-    #test_generator(grammar)
-    #test_sentencesToCharacters()    
-    #test_generator_class()
-    #test_nt_generator_class()
-    test_nw_generator_class()
+    grammar_filepath = '../data/simplerREBER_grammar.cfg'
+    gzip_filepath = '../data/REBER_biased_train.gz'
+    batchSize = 3
+    generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batchSize)
+    # check REBER generator
     
     
     
-    
-    
-    
-    
+    for _ in range(int(1e4)):
+        batch = next(generator)
+        print(batch[0].shape, batch[1].shape)

@@ -21,9 +21,9 @@ from numpy.random import seed
 import logging
 
 import tensorflow as tf
-from nnets.AriEL_encoder import DAriEL_Encoder_Layer_0, DAriEL_Encoder_Layer_1
-from nnets.AriEL_decoder import DAriEL_Decoder_Layer_0, DAriEL_Decoder_Layer_1, DAriEL_Decoder_Layer_2
-from nnets.tf_tools.keras_layers import predefined_model
+from DifferentiableAriEL.nnets.AriEL_encoder import DAriEL_Encoder_Layer_0, DAriEL_Encoder_Layer_1
+from DifferentiableAriEL.nnets.AriEL_decoder import DAriEL_Decoder_Layer_0, DAriEL_Decoder_Layer_1, DAriEL_Decoder_Layer_2
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 tf.compat.v1.disable_eager_execution()
 from tensorflow.keras.models import Model
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 
-class Differentiable_AriEL(object):
+class AriEL(object):
 
     def __init__(self,
                  vocabSize=5,

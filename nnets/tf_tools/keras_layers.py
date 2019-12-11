@@ -5,10 +5,10 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import concatenate, Input, Embedding, \
                          LSTM, Lambda, TimeDistributed, \
                          Activation, Concatenate, Dense
-from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_from_to, clip_layer
 from tensorflow.python.keras.engine.base_layer import Layer
-from nnets.tf_tools.tf_helpers import pzToSymbol_withArgmax, replace_column
 
+from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_from_to, \
+    clip_layer, pzToSymbol_withArgmax, replace_column
 
 class ExpandDims(object):
 

@@ -29,7 +29,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-import os
+import os, time
 import numpy as np
 from time import strftime, localtime
 
@@ -38,7 +38,7 @@ import tensorflow.keras.backend as K
 # from tensorflow.keras.layers import Layer
 # from tensorflow.keras.engine import InputSpec
 import tensorflow as tf
-from celottil.keras.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
 def make_directories(time_string=None):
@@ -151,3 +151,9 @@ def random_sequences_and_points(batchSize=3,
         
     return padded_questions, points
 
+
+    
+def timeStructured():
+    named_tuple = time.localtime()  # get struct_time
+    time_string = time.strftime("%Y-%m-%d-%H-%M-%S", named_tuple)
+    return time_string
