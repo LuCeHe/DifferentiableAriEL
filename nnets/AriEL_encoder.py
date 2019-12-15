@@ -8,7 +8,7 @@ from prettytable import PrettyTable
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer
+from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_fill, dynamic_filler, \
     dynamic_zeros, pzToSymbolAndZ, replace_column, slice_from_to, tf_update_bounds_encoder
@@ -202,6 +202,27 @@ class DAriEL_Encoder_Layer_1(object):
 
         return z
 
+
+def DAriEL_Encoder_Layer_2(
+        vocabSize=3,
+        embDim=3,
+        latDim=3,
+        max_senLen=3,
+        language_model=None,
+        PAD=None):
+    cell = DAriEL_Encoder_Cell_2(vocabSize=vocabSize,
+                                 embDim=embDim,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen,
+                                 language_model=language_model,
+                                 PAD=PAD)
+    rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
+
+    input_question = Input(shape=(None,), name='question')
+    o_s = rnn(input_question)
+    model = Model(inputs=input_question, outputs=o_s)
+
+    return model
 
 class DAriEL_Encoder_Cell_2(Layer):
 
