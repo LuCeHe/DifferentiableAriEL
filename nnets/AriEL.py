@@ -14,7 +14,8 @@ from numpy.random import seed
 
 from DifferentiableAriEL.nnets.AriEL_decoder import DAriEL_Decoder_Layer_0, DAriEL_Decoder_Layer_1, \
     DAriEL_Decoder_Layer_2
-from DifferentiableAriEL.nnets.AriEL_encoder import DAriEL_Encoder_Layer_0, DAriEL_Encoder_Layer_1
+from DifferentiableAriEL.nnets.AriEL_encoder import DAriEL_Encoder_Layer_0, DAriEL_Encoder_Layer_1, \
+    DAriEL_Encoder_Layer_2
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 tf.compat.v1.disable_eager_execution()
@@ -66,11 +67,13 @@ class AriEL(object):
         elif encoder_type == 1:
             # right now this is the better one
             self.DAriA_encoder = DAriEL_Encoder_Layer_1(**self.common_kwargs)
+        elif encoder_type == 2:
+            self.DAriA_encoder = DAriEL_Encoder_Layer_2(**self.common_kwargs)
         else:
             raise NotImplementedError
 
         if decoder_type == 0:
-            # right now this is the better one     
+            # right now this is the better one
             self.DAriA_decoder = DAriEL_Decoder_Layer_0(**self.common_kwargs)
         elif decoder_type == 1:
             self.DAriA_decoder = DAriEL_Decoder_Layer_1(**self.common_kwargs)
@@ -84,5 +87,5 @@ class AriEL(object):
         return self.DAriA_encoder(input_discrete_seq)
 
     def decode(self, input_continuous_point):
-        # it doesn't return a keras Model, it returns a keras Layer  
+        # it doesn't return a keras Model, it returns a keras Layer
         return self.DAriA_decoder(input_continuous_point)
