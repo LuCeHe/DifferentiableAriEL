@@ -69,9 +69,28 @@ def main_test(
 
                 fetched_timeline = timeline.Timeline(run_metadata.step_stats)
                 chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                with open('timeline_Etype_{}_step_{}.json'.format(model_type, i), 'w') as f:
+                destination_json = 'timeline_Etype_{}_step_{}.json'.format(model_type, i)
+                with open(destination_json, 'w') as f:
                     f.write(chrome_trace)
+                ex.add_artifact(destination_json)
 
         input_point = Input(tensor=tf_points, name='question')
         point = DAriA.decode(input_point)
         decoder_model = Model(inputs=input_point, outputs=point)
+
+        with tf.Session(config=config) as sess:
+            sess.run(tf.global_variables_initializer())
+
+            options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+            for i in range(3):
+                sess.run(decoder_model,
+                         options=options,
+                         run_metadata=run_metadata)
+
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                destination_json = 'timeline_Dtype_{}_step_{}.json'.format(model_type, i)
+                with open(destination_json, 'w') as f:
+                    f.write(chrome_trace)
+                ex.add_artifact(destination_json)
