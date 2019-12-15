@@ -22,7 +22,7 @@ logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def DAriEL_Decoder_Layer_1(
+def ArielDecoderLayer1(
         vocabSize=3,
         embDim=3,
         latDim=3,
@@ -31,12 +31,12 @@ def DAriEL_Decoder_Layer_1(
         language_model=None,
         output_type=None,
         PAD=None):
-    cell = DAriEL_Decoder_Cell_1(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
-                                 max_senLen=max_senLen,
-                                 language_model=language_model,
-                                 PAD=PAD)
+    cell = ArielDecoderCell1(vocabSize=vocabSize,
+                             embDim=embDim,
+                             latDim=latDim,
+                             max_senLen=max_senLen,
+                             language_model=language_model,
+                             PAD=PAD)
     rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
 
     input_point = Input(shape=(latDim,), name='point')
@@ -46,7 +46,8 @@ def DAriEL_Decoder_Layer_1(
 
     return model
 
-class DAriEL_Decoder_Cell_1(Layer):
+
+class ArielDecoderCell1(Layer):
 
     def __init__(self,
                  vocabSize=101,
@@ -58,7 +59,7 @@ class DAriEL_Decoder_Cell_1(Layer):
                  PAD=None,
                  **kwargs):
 
-        super(DAriEL_Decoder_Cell_1, self).__init__(**kwargs)
+        super(ArielDecoderCell1, self).__init__(**kwargs)
 
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
@@ -74,7 +75,7 @@ class DAriEL_Decoder_Cell_1(Layer):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def build(self, input_shape):
-        super(DAriEL_Decoder_Cell_1, self).build(input_shape)  # Be sure to call this at the end
+        super(ArielDecoderCell1, self).build(input_shape)  # Be sure to call this at the end
 
     @property
     def state_size(self):
@@ -139,24 +140,7 @@ class DAriEL_Decoder_Cell_1(Layer):
         return output, new_state
 
 
-def DAriEL_Decoder_model(vocabSize=101,
-                         embDim=2,
-                         latDim=4,
-                         max_senLen=10,
-                         language_model=None,
-                         PAD=None,
-                         output_type='both'):
-    layer = DAriEL_Decoder_Layer_0(vocabSize=vocabSize, embDim=embDim,
-                                   latDim=latDim, max_senLen=max_senLen,
-                                   language_model=language_model, PAD=PAD,
-                                   output_type=output_type)
-    input_point = Input(shape=(latDim,), name='input_point')
-    discrete_sequence_output = layer(input_point)
-    model = Model(inputs=input_point, outputs=discrete_sequence_output)
-    return model
-
-
-class DAriEL_Decoder_Layer_0(object):
+class ArielDecoderLayer0(object):
 
     def __init__(self,
                  vocabSize=101,
@@ -244,7 +228,7 @@ class DAriEL_Decoder_Layer_0(object):
         return output
 
 
-class DAriEL_Decoder_Layer_2(object):
+class ArielDecoderLayer2(object):
     """ simpler version of the decoder where I strictly do what the algorithm
     in the paper says """
 

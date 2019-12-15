@@ -73,7 +73,7 @@ def main_test(
 
     tf_sentences = tf.convert_to_tensor(sentences)
     tf_points = tf.convert_to_tensor(points, dtype=tf.float32)
-    for model_type in range(1,3):
+    for model_type in range(2,3):
         DAriA = AriEL(
             vocabSize=vocabSize,
             embDim=embDim,

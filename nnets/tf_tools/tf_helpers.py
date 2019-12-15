@@ -213,6 +213,8 @@ def pzToSymbolAndZ(inputs):
 
 def replace_column(matrix, new_column, r):
     dynamic_index = tf.cast(tf.squeeze(r), dtype=tf.int64)
+    matrix = tf.cast(matrix, dtype=tf.float32)
+    new_column = tf.cast(new_column, dtype=tf.float32)
     num_cols = tf.shape(matrix)[1]
     # new_matrix = tf.assign(matrix[:, dynamic_index], new_column)
     index_row = tf.stack([tf.eye(num_cols, dtype=tf.float32)[dynamic_index, :]])

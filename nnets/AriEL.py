@@ -12,10 +12,10 @@ import logging
 import tensorflow as tf
 from numpy.random import seed
 
-from DifferentiableAriEL.nnets.AriEL_decoder import DAriEL_Decoder_Layer_0, DAriEL_Decoder_Layer_1, \
-    DAriEL_Decoder_Layer_2
-from DifferentiableAriEL.nnets.AriEL_encoder import DAriEL_Encoder_Layer_0, DAriEL_Encoder_Layer_1, \
-    DAriEL_Encoder_Layer_2
+from DifferentiableAriEL.nnets.AriEL_decoder import ArielDecoderLayer0, ArielDecoderLayer1, \
+    ArielDecoderLayer2
+from DifferentiableAriEL.nnets.AriEL_encoder import ArielEncoderLayer0, ArielEncoderLayer1, \
+    ArielEncoderLayer2
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 tf.compat.v1.disable_eager_execution()
@@ -62,29 +62,29 @@ class AriEL(object):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
         if encoder_type == 0:
-            self.DAriA_encoder = DAriEL_Encoder_Layer_0(**self.common_kwargs)
+            self.AriEL_encoder = ArielEncoderLayer0(**self.common_kwargs)
         elif encoder_type == 1:
             # right now this is the better one
-            self.DAriA_encoder = DAriEL_Encoder_Layer_1(**self.common_kwargs)
+            self.AriEL_encoder = ArielEncoderLayer1(**self.common_kwargs)
         elif encoder_type == 2:
-            self.DAriA_encoder = DAriEL_Encoder_Layer_2(**self.common_kwargs)
+            self.AriEL_encoder = ArielEncoderLayer2(**self.common_kwargs)
         else:
             raise NotImplementedError
 
         if decoder_type == 0:
             # right now this is the better one
-            self.DAriA_decoder = DAriEL_Decoder_Layer_0(**self.common_kwargs, output_type=output_type)
+            self.AriEL_decoder = ArielDecoderLayer0(**self.common_kwargs, output_type=output_type)
         elif decoder_type == 1:
-            self.DAriA_decoder = DAriEL_Decoder_Layer_1(**self.common_kwargs)
+            self.AriEL_decoder = ArielDecoderLayer1(**self.common_kwargs)
         elif decoder_type == 2:
-            self.DAriA_decoder = DAriEL_Decoder_Layer_2(**self.common_kwargs, output_type=output_type)
+            self.AriEL_decoder = ArielDecoderLayer2(**self.common_kwargs, output_type=output_type)
         else:
             raise NotImplementedError
 
     def encode(self, input_discrete_seq):
         # it doesn't return a keras Model, it returns a keras Layer
-        return self.DAriA_encoder(input_discrete_seq)
+        return self.AriEL_encoder(input_discrete_seq)
 
     def decode(self, input_continuous_point):
         # it doesn't return a keras Model, it returns a keras Layer
-        return self.DAriA_decoder(input_continuous_point)
+        return self.AriEL_decoder(input_continuous_point)

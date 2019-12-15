@@ -11,7 +11,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_fill, dynamic_filler, \
-    dynamic_zeros, pzToSymbolAndZ, replace_column, slice_from_to, tf_update_bounds_encoder
+    dynamic_zeros, replace_column, slice_from_to, tf_update_bounds_encoder
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
 
 seed(3)
@@ -37,7 +37,7 @@ def DAriEL_Encoder_model(vocabSize=101,
 
 
 # FIXME: encoder
-class DAriEL_Encoder_Layer_0(object):
+class ArielEncoderLayer0(object):
 
     def __init__(self,
                  vocabSize=101,
@@ -146,7 +146,7 @@ class probsToPoint(object):
         return pointLatentDim
 
 
-class DAriEL_Encoder_Layer_1(object):
+class ArielEncoderLayer1(object):
     """ simpler version of the encoder where I strictly do what the algorithm
     in the paper says """
 
@@ -177,7 +177,7 @@ class DAriEL_Encoder_Layer_1(object):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def __call__(self, input_question):
-        PAD_layer = Lambda(dynamic_filler, arguments={'d': 1, 'value': int(self.PAD)})(input_question)
+        PAD_layer = Lambda(dynamic_filler, arguments={'d': 1, 'value': float(self.PAD)})(input_question)
 
         sentence_layer = Concatenate(axis=1)([PAD_layer, input_question])
         sentence_layer = Lambda(tf.cast, arguments={'dtype': tf.int32, })(sentence_layer)
@@ -204,7 +204,7 @@ class DAriEL_Encoder_Layer_1(object):
         return z
 
 
-def DAriEL_Encoder_Layer_2(
+def ArielEncoderLayer2(
         vocabSize=3,
         embDim=3,
         latDim=3,
@@ -212,23 +212,24 @@ def DAriEL_Encoder_Layer_2(
         size_latDim=1.,
         language_model=None,
         PAD=None):
-    cell = DAriEL_Encoder_Cell_2(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
-                                 max_senLen=max_senLen,
-                                 size_latDim=size_latDim,
-                                 language_model=language_model,
-                                 PAD=PAD)
+    cell = ArielEncoderCell2(vocabSize=vocabSize,
+                             embDim=embDim,
+                             latDim=latDim,
+                             max_senLen=max_senLen,
+                             size_latDim=size_latDim,
+                             language_model=language_model,
+                             PAD=PAD)
     rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
 
     input_question = Input(shape=(None,), name='question')
-    input_question = ExpandDims(axis=2)(input_question)
-    o_s = rnn(input_question)
+    expanded = ExpandDims(axis=2)(input_question)
+    o_s = rnn(expanded)
     model = Model(inputs=input_question, outputs=o_s)
 
     return model
 
-class DAriEL_Encoder_Cell_2(Layer):
+
+class ArielEncoderCell2(Layer):
 
     def __init__(self,
                  vocabSize=101,
@@ -239,7 +240,7 @@ class DAriEL_Encoder_Cell_2(Layer):
                  size_latDim=3,
                  PAD=None,
                  **kwargs):
-        super(DAriEL_Encoder_Cell_2, self).__init__(**kwargs)
+        super(ArielEncoderCell2, self).__init__(**kwargs)
 
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
@@ -256,7 +257,7 @@ class DAriEL_Encoder_Cell_2(Layer):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def build(self, input_shape):
-        super(DAriEL_Encoder_Cell_2, self).build(input_shape)  # Be sure to call this at the end
+        super(ArielEncoderCell2, self).build(input_shape)  # Be sure to call this at the end
 
     @property
     def state_size(self):
@@ -276,13 +277,13 @@ class DAriEL_Encoder_Cell_2(Layer):
         input_token = inputs
         low_bound, upp_bound, tokens, z, curDimVector, timeStepVector = state
 
-
         curDim = curDimVector[0]
         timeStep = timeStepVector[0]
-        timeStep_plus1 = tf.add(timeStep, 1)
-        timeStep_plus2 = tf.add(timeStep, 2)
+        timeStep_plus1 = tf.squeeze(tf.cast(tf.add(timeStep, 1), dtype=tf.int32))
+        timeStep_plus2 = tf.squeeze(tf.cast(tf.add(timeStep, 2), dtype=tf.int32))
+        tf_curDim = tf.squeeze(tf.cast(curDim, dtype=tf.int32))
 
-        tokens = replace_column(tokens, input_token, timeStep_plus1)
+        tokens = replace_column(tokens, tf.squeeze(input_token, axis=1), timeStep_plus1)
 
         initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
         initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
@@ -293,11 +294,12 @@ class DAriEL_Encoder_Cell_2(Layer):
 
         s_0toj = slice_from_to(tokens, 0, timeStep_plus1)
         s_j = slice_from_to(tokens, timeStep_plus1, timeStep_plus2)
+        s_j = tf.cast(s_j, dtype=tf.int32)
 
         s_0toj_layer = Input(tensor=s_0toj)
         softmax = self.language_model(s_0toj_layer)
 
-        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, curDim)
+        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, tf_curDim)
 
         bounds = tf.concat([low_bound[..., tf.newaxis], upp_bound[..., tf.newaxis]], axis=2)
         z = tf.reduce_mean(bounds, axis=2)
@@ -323,7 +325,7 @@ def test():
     latDim = 2
 
     input_questions = Input((None,))
-    encoded = DAriEL_Encoder_Layer_1(PAD=0,
+    encoded = DAriEL_Encoder_Layer_2(PAD=0,
                                      vocabSize=vocabSize,
                                      latDim=latDim,
                                      max_senLen=max_senLen, )(input_questions)
