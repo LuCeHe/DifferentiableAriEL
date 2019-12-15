@@ -139,7 +139,6 @@ class ArielDecoderCell1(Layer):
 
         return output, new_state
 
-
 class ArielDecoderLayer0(object):
 
     def __init__(self,
