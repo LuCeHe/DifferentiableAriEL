@@ -33,6 +33,7 @@ from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 ex = CustomExperiment('2d')
 
+
 @ex.config
 def cfg():
     PAD = 0
@@ -263,14 +264,10 @@ def threeSentencesGenerator(choices, probabilities, batchSize=3, vocabSize=5, ne
 
 
 @ex.automain
-def test_2d_visualization_trainOutside(vocabSize,
-                                       embDim,
-                                       latDim,
-                                       choices,
-                                       probabilities,
-                                       START, END, PAD,
-                                       LM_path, epochs, steps_per_epoch,
-                                       _log):
+def main_test(vocabSize,
+              embDim,
+              LM_path, epochs, steps_per_epoch,
+              _log):
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
 
