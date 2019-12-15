@@ -111,11 +111,8 @@ class ArielDecoderCell1(Layer):
         token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
         token.set_shape((None, 1))
         token = tf.squeeze(token, axis=1)
-        print('K.int_shape(tokens):           ', K.int_shape(tokens))
+
         tokens = replace_column(tokens, token, timeStep)
-        print('K.int_shape(input_token):      ', K.int_shape(token))
-        print('K.int_shape(tokens):           ', K.int_shape(tokens))
-        print('K.int_shape(timeStep):         ', K.int_shape(timeStep))
 
         # get the softmax for the next iteration
         # make sure you feed only up to the tokens that have been produced now ([:timeStep]
@@ -138,6 +135,7 @@ class ArielDecoderCell1(Layer):
         output = tokens
 
         return output, new_state
+
 
 class ArielDecoderLayer0(object):
 

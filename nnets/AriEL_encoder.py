@@ -219,7 +219,7 @@ def ArielEncoderLayer2(
                              size_latDim=size_latDim,
                              language_model=language_model,
                              PAD=PAD)
-    rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
+    rnn = RNN([cell], return_sequences=True, return_state=False, name='AriEL_encoder')
 
     input_question = Input(shape=(None,), name='question')
     expanded = ExpandDims(axis=2)(input_question)
@@ -274,7 +274,7 @@ class ArielEncoderCell2(Layer):
 
     def call(self, inputs, state):
 
-        input_token = inputs
+        input_token = tf.squeeze(inputs, axis=1)
         low_bound, upp_bound, tokens, z, curDimVector, timeStepVector = state
 
         curDim = curDimVector[0]
@@ -283,14 +283,14 @@ class ArielEncoderCell2(Layer):
         timeStep_plus2 = tf.squeeze(tf.cast(tf.add(timeStep, 2), dtype=tf.int32))
         tf_curDim = tf.squeeze(tf.cast(curDim, dtype=tf.int32))
 
-        tokens = replace_column(tokens, tf.squeeze(input_token, axis=1), timeStep_plus1)
+        tokens = replace_column(tokens, input_token, timeStep_plus1)
 
         initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
         initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
 
         pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
-        low_bound = tf.cond(pred_t, lambda: initial_low_bound, lambda: low_bound, name='low_bound_cond')
-        upp_bound = tf.cond(pred_t, lambda: initial_upp_bound, lambda: upp_bound, name='upp_bound_cond')
+        low_bound = tf.cond(pred_t, lambda: low_bound, lambda: initial_low_bound, name='low_bound_cond')
+        upp_bound = tf.cond(pred_t, lambda: upp_bound, lambda: initial_upp_bound, name='upp_bound_cond')
 
         s_0toj = slice_from_to(tokens, 0, timeStep_plus1)
         s_j = slice_from_to(tokens, timeStep_plus1, timeStep_plus2)
@@ -315,20 +315,20 @@ class ArielEncoderCell2(Layer):
         timeStepVector = tf.tile(timeStep[tf.newaxis, :], [b, 1])
 
         new_state = [low_bound, upp_bound, tokens, z, curDimVector, timeStepVector]
-        output = z
+        output = z, low_bound, upp_bound, pred_t[tf.newaxis]
 
         return output, new_state
 
 
-def test():
+def test_1():
     vocabSize, batch_size, max_senLen = 3, 6, 5
     latDim = 2
 
     input_questions = Input((None,))
-    encoded = DAriEL_Encoder_Layer_2(PAD=0,
-                                     vocabSize=vocabSize,
-                                     latDim=latDim,
-                                     max_senLen=max_senLen, )(input_questions)
+    encoded = ArielEncoderLayer2(PAD=0,
+                                 vocabSize=vocabSize,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen, )(input_questions)
     model = Model(input_questions, encoded)
 
     sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
@@ -337,7 +337,7 @@ def test():
 
     t = PrettyTable()
 
-    results = [sentences] + [prediction]
+    results = [sentences] + prediction[1:] #[prediction]
     for a in zip(*results):
         t.add_row([y for y in a])
 
@@ -345,5 +345,28 @@ def test():
     print(t)
 
 
+def test_2():
+    vocabSize, batch_size, max_senLen = 3, 1, 5
+    latDim = 2
+
+    input_questions = Input((None,))
+    encoded = ArielEncoderLayer2(PAD=0,
+                                 vocabSize=vocabSize,
+                                 latDim=latDim,
+                                 max_senLen=max_senLen)(input_questions)
+    model = Model(input_questions, encoded)
+
+    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+    prediction = model.predict(sentences)
+
+    t = PrettyTable()
+
+    results = prediction
+    for a in zip(*results):
+        t.add_row([y for y in a])
+
+    t.add_row([y.shape for y in results])
+    print(t)
+
 if __name__ == '__main__':
-    test()
+    test_2()
