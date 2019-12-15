@@ -44,6 +44,7 @@ class DAriEL_Encoder_Layer_0(object):
                  embDim=2,
                  latDim=4,
                  language_model=None,
+                 size_latDim=0,
                  max_senLen=6,
                  PAD=None,
                  softmaxes=False):
@@ -208,17 +209,20 @@ def DAriEL_Encoder_Layer_2(
         embDim=3,
         latDim=3,
         max_senLen=3,
+        size_latDim=1.,
         language_model=None,
         PAD=None):
     cell = DAriEL_Encoder_Cell_2(vocabSize=vocabSize,
                                  embDim=embDim,
                                  latDim=latDim,
                                  max_senLen=max_senLen,
+                                 size_latDim=size_latDim,
                                  language_model=language_model,
                                  PAD=PAD)
     rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
 
     input_question = Input(shape=(None,), name='question')
+    input_question = ExpandDims(axis=2)(input_question)
     o_s = rnn(input_question)
     model = Model(inputs=input_question, outputs=o_s)
 
@@ -272,12 +276,18 @@ class DAriEL_Encoder_Cell_2(Layer):
         input_token = inputs
         low_bound, upp_bound, tokens, z, curDimVector, timeStepVector = state
 
+
         curDim = curDimVector[0]
         timeStep = timeStepVector[0]
         timeStep_plus1 = tf.add(timeStep, 1)
         timeStep_plus2 = tf.add(timeStep, 2)
 
+        print('K.int_shape(tokens):           ', K.int_shape(tokens))
         tokens = replace_column(tokens, input_token, timeStep_plus1)
+        print('K.int_shape(input_token):      ', K.int_shape(input_token))
+        print('K.int_shape(tokens):           ', K.int_shape(tokens))
+        print('K.int_shape(timeStep_plus1):   ', K.int_shape(timeStep_plus1))
+        print('K.int_shape(timeStep):         ', K.int_shape(timeStep))
 
         initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
         initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
@@ -286,8 +296,8 @@ class DAriEL_Encoder_Cell_2(Layer):
         low_bound = tf.cond(pred_t, lambda: initial_low_bound, lambda: low_bound, name='low_bound_cond')
         upp_bound = tf.cond(pred_t, lambda: initial_upp_bound, lambda: upp_bound, name='upp_bound_cond')
 
-        s_0toj = slice_from_to(tokens, 1, 0, timeStep_plus1)
-        s_j = slice_from_to(tokens, 1, timeStep_plus1, timeStep_plus2)
+        s_0toj = slice_from_to(tokens, 0, timeStep_plus1)
+        s_j = slice_from_to(tokens, timeStep_plus1, timeStep_plus2)
 
         s_0toj_layer = Input(tensor=s_0toj)
         softmax = self.language_model(s_0toj_layer)

@@ -52,9 +52,8 @@ class AriEL(object):
             size_latDim=size_latDim,
             language_model=language_model,
             PAD=PAD,
-            max_senLen=max_senLen,
-            output_type=output_type)
-        self.__dict__.update(**self.common_kwargs)
+            max_senLen=max_senLen)
+        self.__dict__.update(**self.common_kwargs, output_type=output_type)
 
         # if the input is a rnn, use that, otherwise use an LSTM
         if self.language_model == None:
@@ -74,11 +73,11 @@ class AriEL(object):
 
         if decoder_type == 0:
             # right now this is the better one
-            self.DAriA_decoder = DAriEL_Decoder_Layer_0(**self.common_kwargs)
+            self.DAriA_decoder = DAriEL_Decoder_Layer_0(**self.common_kwargs, output_type=output_type)
         elif decoder_type == 1:
             self.DAriA_decoder = DAriEL_Decoder_Layer_1(**self.common_kwargs)
         elif decoder_type == 2:
-            self.DAriA_decoder = DAriEL_Decoder_Layer_2(**self.common_kwargs)
+            self.DAriA_decoder = DAriEL_Decoder_Layer_2(**self.common_kwargs, output_type=output_type)
         else:
             raise NotImplementedError
 

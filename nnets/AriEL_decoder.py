@@ -8,6 +8,7 @@ from prettytable import PrettyTable
 tf.compat.v1.disable_eager_execution()
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN, RepeatVector
+import tensorflow.keras.backend as K
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, clip_layer, dynamic_filler, pzToSymbolAndZ, \
     replace_column
@@ -25,8 +26,10 @@ def DAriEL_Decoder_Layer_1(
         vocabSize=3,
         embDim=3,
         latDim=3,
+        size_latDim=1,
         max_senLen=3,
         language_model=None,
+        output_type=None,
         PAD=None):
     cell = DAriEL_Decoder_Cell_1(vocabSize=vocabSize,
                                  embDim=embDim,
@@ -51,9 +54,11 @@ class DAriEL_Decoder_Cell_1(Layer):
                  latDim=4,
                  max_senLen=3,
                  language_model=None,
+                 size_latDim=1.,
                  PAD=None,
                  **kwargs):
-        super(DAriEL_Decoder_Layer_1, self).__init__(**kwargs)
+
+        super(DAriEL_Decoder_Cell_1, self).__init__(**kwargs)
 
         self.__dict__.update(vocabSize=vocabSize,
                              embDim=embDim,
@@ -69,7 +74,7 @@ class DAriEL_Decoder_Cell_1(Layer):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def build(self, input_shape):
-        super(DAriEL_Decoder_Layer_1, self).build(input_shape)  # Be sure to call this at the end
+        super(DAriEL_Decoder_Cell_1, self).build(input_shape)  # Be sure to call this at the end
 
     @property
     def state_size(self):
@@ -105,7 +110,11 @@ class DAriEL_Decoder_Cell_1(Layer):
         token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
         token.set_shape((None, 1))
         token = tf.squeeze(token, axis=1)
+        print('K.int_shape(tokens):           ', K.int_shape(tokens))
         tokens = replace_column(tokens, token, timeStep)
+        print('K.int_shape(input_token):      ', K.int_shape(token))
+        print('K.int_shape(tokens):           ', K.int_shape(tokens))
+        print('K.int_shape(timeStep):         ', K.int_shape(timeStep))
 
         # get the softmax for the next iteration
         # make sure you feed only up to the tokens that have been produced now ([:timeStep]
