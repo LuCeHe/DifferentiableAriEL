@@ -203,13 +203,14 @@ class DAriEL_Decoder_Layer_0(object):
         curDim = 0
         curDim_t = tf.constant(curDim)
 
+        batch_size = one_softmax.get_shape()[0]
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
         # is maxLen
         for _ in range(self.max_senLen):
 
             token, unfolding_point = Lambda(pzToSymbolAndZ)([one_softmax, unfolding_point, curDim_t])
-            token.set_shape((None, 1))
+            token.set_shape((batch_size, 1))
 
             final_tokens = Concatenate(axis=1)([final_tokens, token])
             one_softmax = self.language_model(final_tokens)

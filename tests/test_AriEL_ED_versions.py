@@ -30,7 +30,7 @@ ch = logging.StreamHandler()
 formatter = logging.Formatter('[%(levelname).1s] %(name)s >> "%(message)s"')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-logger.setLevel('INFO')
+#logger.setLevel('INFO')
 
 # attach it to the experiment
 ex.logger = logger
@@ -46,7 +46,7 @@ def cfg():
     max_senLen = 6
     vocabSize = 2
     embDim = 1
-    n_profiles = 0 #3
+    n_profiles = 1 #3
 
 @ex.automain
 @LogFileWriter(ex)
@@ -60,7 +60,7 @@ def main_test(
         _log):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
-    config.log_device_placement = True  # to log device placement (on which device the operation ran)
+    #config.log_device_placement = True  # to log device placement (on which device the operation ran)
     # (nothing gets printed in Jupyter, only if you run it standalone)
     # sess = tf.Session(config=config)
     # set_session(sess)  # set this TensorFlow session as the default session for Keras
@@ -73,7 +73,7 @@ def main_test(
 
     tf_sentences = tf.convert_to_tensor(sentences)
     tf_points = tf.convert_to_tensor(points, dtype=tf.float32)
-    for model_type in range(1,4):
+    for model_type in range(0,1):
         DAriA = AriEL(
             vocabSize=vocabSize,
             embDim=embDim,
@@ -86,7 +86,6 @@ def main_test(
             PAD=0
         )
 
-        """
         _log.info('\n##########################################')
         _log.info('           AriEL Encoder {}'.format(model_type))
         _log.info('##########################################\n')
@@ -106,12 +105,12 @@ def main_test(
 
                 fetched_timeline = timeline.Timeline(run_metadata.step_stats)
                 chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                destination_json = 'timeline_Etype_{}_step_{}.json'.format(model_type, i)
+                destination_json = 'experiments/timeline_Etype_{}_step_{}.json'.format(model_type, i)
                 with open(destination_json, 'w') as f:
                     f.write(chrome_trace)
                 ex.add_artifact(destination_json)
-        """
 
+        """
         _log.info('\n##########################################')
         _log.info('           AriEL Decoder {}'.format(model_type))
         _log.info('##########################################\n')
@@ -132,8 +131,10 @@ def main_test(
 
                 fetched_timeline = timeline.Timeline(run_metadata.step_stats)
                 chrome_trace = fetched_timeline.generate_chrome_trace_format()
-                destination_json = 'timeline_Dtype_{}_step_{}.json'.format(model_type, i)
+                destination_json = 'experiments/timeline_Dtype_{}_step_{}.json'.format(model_type, i)
+                print('\n\n\n\n\n\n', destination_json, '\n\n\n\n\n\n')
                 with open(destination_json, 'w') as f:
                     f.write(chrome_trace)
                 ex.add_artifact(destination_json)
+        """
 
