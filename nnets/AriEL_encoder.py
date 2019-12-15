@@ -11,7 +11,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_fill, dynamic_filler, \
-    dynamic_zeros, pzToSymbolAndZ, replace_column, slice_from_to
+    dynamic_zeros, pzToSymbolAndZ, replace_column, slice_from_to, tf_update_bounds_encoder
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
 
 seed(3)
@@ -235,7 +235,8 @@ class DAriEL_Encoder_Cell_2(Layer):
 
     @property
     def state_size(self):
-        return (self.vocabSize,
+        return (self.latDim,
+                self.latDim,
                 self.max_senLen + 1,
                 self.latDim,
                 1,
@@ -248,16 +249,21 @@ class DAriEL_Encoder_Cell_2(Layer):
     def call(self, inputs, state):
 
         input_token = inputs
-        one_softmax, tokens, unfolding_point, curDimVector, timeStepVector = state
+        low_bound, upp_bound, tokens, z, curDimVector, timeStepVector = state
 
         curDim = curDimVector[0]
         timeStep = timeStepVector[0]
         timeStep_plus1 = tf.add(timeStep, 1)
         timeStep_plus2 = tf.add(timeStep, 2)
+
         tokens = replace_column(tokens, input_token, timeStep_plus1)
 
-        low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
-        upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
+        initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
+        initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
+
+        pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
+        low_bound = tf.cond(pred_t, lambda: initial_low_bound, lambda: low_bound, name='low_bound_cond')
+        upp_bound = tf.cond(pred_t, lambda: initial_upp_bound, lambda: upp_bound, name='upp_bound_cond')
 
         s_0toj = slice_from_to(tokens, 1, 0, timeStep_plus1)
         s_j = slice_from_to(tokens, 1, timeStep_plus1, timeStep_plus2)
@@ -265,46 +271,23 @@ class DAriEL_Encoder_Cell_2(Layer):
         s_0toj_layer = Input(tensor=s_0toj)
         softmax = self.language_model(s_0toj_layer)
 
+        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j)
 
-        low_bound, upp_bound = UpdateBoundsEncoder(self.latDim, self.vocabSize, curDim)(
-            [low_bound, upp_bound, softmax, s_j])
-
-        # initialization
-        PAD_layer = Input(tensor=self.PAD * tf.ones_like(input_point[:, 0, tf.newaxis]))
-        initial_softmax = self.language_model(PAD_layer)
-
-        # FIXME: it would be interesting to consider what would happen if we feed different points within
-        # a batch
-        pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
-
-        unfolding_point = tf.cond(pred_t, lambda: input_point, lambda: unfolding_point, name='unfolding_point')
-        one_softmax = tf.cond(pred_t, lambda: initial_softmax, lambda: one_softmax, name='one_softmax')
-        # tokens = tf.cond(pred_t, lambda: PAD_layer, lambda: tokens, name='tokens')
-
-        token, unfolding_point = pzToSymbolAndZ([one_softmax, unfolding_point, curDim])
-        token.set_shape((None, 1))
-        token = tf.squeeze(token, axis=1)
-        tokens = replace_column(tokens, token, timeStep)
-
-        # get the softmax for the next iteration
-        # make sure you feed only up to the tokens that have been produced now ([:timeStep]
-        # otherwise you are feeding a sentence with tons of zeros at the end.
-        tokens_in = Input(tensor=tokens[:, :tf.cast(tf.squeeze(timeStep), dtype=tf.int64) + 1])
-        # tokens_in = Input(tensor=tokens[:, tf.cast(tf.squeeze(timeStep), dtype=tf.int64)+1, tf.newaxis])
-        one_softmax = self.language_model(tokens_in)
+        bounds = tf.concat([low_bound[..., tf.newaxis], upp_bound[..., tf.newaxis]], axis=2)
+        z = tf.reduce_mean(bounds, axis=2)
 
         # NOTE: at each iteration, change the dimension, and add a timestep
-        latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
+        latDim = tf.cast(tf.shape(z)[-1], dtype=tf.float32)
         pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
 
-        b = tf.shape(one_softmax)[0]
+        b = tf.shape(z)[0]
         curDimVector = tf.tile(curDim[tf.newaxis, :], [b, 1])
         timeStepVector = tf.tile(timeStep[tf.newaxis, :], [b, 1])
 
-        new_state = [one_softmax, tokens, unfolding_point, curDimVector, timeStepVector]
-        output = one_softmax
+        new_state = [low_bound, upp_bound, tokens, z, curDimVector, timeStepVector]
+        output = z
 
         return output, new_state
 

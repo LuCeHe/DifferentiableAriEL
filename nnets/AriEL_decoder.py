@@ -84,7 +84,6 @@ class DAriEL_Decoder_Cell_1(Layer):
         # FIXME: it would be interesting to consider what would happen if we feed different points within
         # a batch
         pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
-
         unfolding_point = tf.cond(pred_t, lambda: input_point, lambda: unfolding_point, name='unfolding_point')
         one_softmax = tf.cond(pred_t, lambda: initial_softmax, lambda: one_softmax, name='one_softmax')
         # tokens = tf.cond(pred_t, lambda: PAD_layer, lambda: tokens, name='tokens')

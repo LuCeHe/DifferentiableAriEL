@@ -251,15 +251,18 @@ def showGradientsAndTrainableParams(model):
 
 
 def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j):
+    vocabSize = tf.shape(softmax)[-1]
+    latDim = tf.shape(low_bound)[-1]
+
     s = s_j[:, 0]
-    d_oh = tf.one_hot(self.curDim * tf.ones_like(s), self.latDim)
-    _d_oh = tf.subtract(tf.ones(self.latDim), d_oh, name='d_inv_oh')
+    d_oh = tf.one_hot(self.curDim * tf.ones_like(s), latDim)
+    _d_oh = tf.subtract(tf.ones(latDim), d_oh, name='d_inv_oh')
 
     c_upp = K.cumsum(softmax, axis=1)
     c_low = tf.cumsum(softmax, axis=1, exclusive=True)
     range_ = upp_bound[:, self.curDim] - low_bound[:, self.curDim]
 
-    s_oh = tf.one_hot(s, self.vocabSize)
+    s_oh = tf.one_hot(s, vocabSize)
 
     # tf convoluted way to assign a value to a location ,
     # to minimize time, I'll go to the first and fast solution
