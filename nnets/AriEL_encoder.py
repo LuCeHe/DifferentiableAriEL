@@ -1,23 +1,17 @@
 import logging
+
 import numpy as np
 import tensorflow as tf
 from numpy.random import seed
 from prettytable import PrettyTable
-from tqdm import tqdm
 
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import concatenate, Input, Embedding, \
-    LSTM, Lambda, TimeDistributed, RepeatVector, \
-    Activation, Concatenate, Dense, RNN, Layer
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.python.framework import function
+from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer
 
-from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_one_hot, onehot_pseudoD, \
-    pzToSymbol_withArgmax, clip_layer, dynamic_fill, dynamic_filler, dynamic_zeros, \
-    pzToSymbolAndZ
+from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_fill, dynamic_filler, \
+    dynamic_zeros, pzToSymbolAndZ, replace_column, slice_from_to
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
 
 seed(3)
@@ -237,12 +231,12 @@ class DAriEL_Encoder_Cell_2(Layer):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def build(self, input_shape):
-        super(DAriEL_Decoder_Layer_1, self).build(input_shape)  # Be sure to call this at the end
+        super(DAriEL_Encoder_Cell_2, self).build(input_shape)  # Be sure to call this at the end
 
     @property
     def state_size(self):
         return (self.vocabSize,
-                self.max_senLen+1,
+                self.max_senLen + 1,
                 self.latDim,
                 1,
                 1)
@@ -270,6 +264,8 @@ class DAriEL_Encoder_Cell_2(Layer):
 
         s_0toj_layer = Input(tensor=s_0toj)
         softmax = self.language_model(s_0toj_layer)
+
+
         low_bound, upp_bound = UpdateBoundsEncoder(self.latDim, self.vocabSize, curDim)(
             [low_bound, upp_bound, softmax, s_j])
 
@@ -311,6 +307,7 @@ class DAriEL_Encoder_Cell_2(Layer):
         output = one_softmax
 
         return output, new_state
+
 
 def test():
     vocabSize, batch_size, max_senLen = 3, 6, 5

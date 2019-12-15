@@ -1,5 +1,6 @@
-import numpy as np
 import logging
+
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.python.framework import function
@@ -247,3 +248,32 @@ def showGradientsAndTrainableParams(model):
     logger.info('Total params: {:,}'.format(trainable_count + non_trainable_count))
     logger.info('Trainable params: {:,}'.format(trainable_count))
     logger.info('Non-trainable params: {:,}'.format(non_trainable_count))
+
+
+def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j):
+    s = s_j[:, 0]
+    d_oh = tf.one_hot(self.curDim * tf.ones_like(s), self.latDim)
+    _d_oh = tf.subtract(tf.ones(self.latDim), d_oh, name='d_inv_oh')
+
+    c_upp = K.cumsum(softmax, axis=1)
+    c_low = tf.cumsum(softmax, axis=1, exclusive=True)
+    range_ = upp_bound[:, self.curDim] - low_bound[:, self.curDim]
+
+    s_oh = tf.one_hot(s, self.vocabSize)
+
+    # tf convoluted way to assign a value to a location ,
+    # to minimize time, I'll go to the first and fast solution
+
+    # up bound
+    upp_update = range_ * tf.reduce_sum(c_upp * s_oh, axis=1)
+    updated_upp = tf.add(low_bound[:, self.curDim], upp_update)[:, tf.newaxis] * d_oh
+
+    upp_bound = tf.add(upp_bound * _d_oh, updated_upp)
+
+    # low bound
+    low_update = range_ * tf.reduce_sum(c_low * s_oh, axis=1)
+    updated_low = tf.add(low_bound[:, self.curDim], low_update)[:, tf.newaxis] * d_oh
+
+    low_bound = tf.add(low_bound * _d_oh, updated_low)
+
+    return low_bound, upp_bound
