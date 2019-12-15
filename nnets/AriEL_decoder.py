@@ -13,7 +13,6 @@ from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, clip_layer, dy
     replace_column
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsDecoder, ExpandDims, \
     Slice, FindSymbolAndBounds, ReplaceColumn
-from DifferentiableAriEL.language.utils import random_sequences_and_points
 
 seed(3)
 tf.set_random_seed(2)

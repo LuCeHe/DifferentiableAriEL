@@ -1,11 +1,11 @@
 import tensorflow as tf
-from GenericTools.SacredTools.CustomSacred import CustomExperiment
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.python.client import timeline
 
 from DifferentiableAriEL.nnets.AriEL import AriEL
 from GenericTools.LeanguageTreatmentTools.random import random_sequences_and_points
+from GenericTools.SacredTools.CustomSacred import CustomExperiment
 
 ex = CustomExperiment('2d')
 
