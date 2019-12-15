@@ -177,7 +177,7 @@ class DAriEL_Encoder_Layer_1(object):
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
     def __call__(self, input_question):
-        PAD_layer = Lambda(dynamic_filler, arguments={'d': 1, 'value': float(self.PAD)})(input_question)
+        PAD_layer = Lambda(dynamic_filler, arguments={'d': 1, 'value': int(self.PAD)})(input_question)
 
         sentence_layer = Concatenate(axis=1)([PAD_layer, input_question])
         sentence_layer = Lambda(tf.cast, arguments={'dtype': tf.int32, })(sentence_layer)
@@ -282,12 +282,7 @@ class DAriEL_Encoder_Cell_2(Layer):
         timeStep_plus1 = tf.add(timeStep, 1)
         timeStep_plus2 = tf.add(timeStep, 2)
 
-        print('K.int_shape(tokens):           ', K.int_shape(tokens))
         tokens = replace_column(tokens, input_token, timeStep_plus1)
-        print('K.int_shape(input_token):      ', K.int_shape(input_token))
-        print('K.int_shape(tokens):           ', K.int_shape(tokens))
-        print('K.int_shape(timeStep_plus1):   ', K.int_shape(timeStep_plus1))
-        print('K.int_shape(timeStep):         ', K.int_shape(timeStep))
 
         initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
         initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
@@ -302,7 +297,7 @@ class DAriEL_Encoder_Cell_2(Layer):
         s_0toj_layer = Input(tensor=s_0toj)
         softmax = self.language_model(s_0toj_layer)
 
-        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j)
+        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, curDim)
 
         bounds = tf.concat([low_bound[..., tf.newaxis], upp_bound[..., tf.newaxis]], axis=2)
         z = tf.reduce_mean(bounds, axis=2)

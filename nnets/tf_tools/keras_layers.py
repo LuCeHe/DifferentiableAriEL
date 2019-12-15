@@ -141,7 +141,8 @@ class UpdateBoundsEncoder(Layer):
 
     def call(self, inputs, training=None):
         low_bound, upp_bound, softmax, s_j = inputs
-        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j)
+        tf_curDim = tf.constant(self.curDim)
+        low_bound, upp_bound = tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, tf_curDim)
         return [low_bound, upp_bound]
 
     def compute_output_shape(self, input_shape):

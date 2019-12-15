@@ -73,7 +73,7 @@ def main_test(
 
     tf_sentences = tf.convert_to_tensor(sentences)
     tf_points = tf.convert_to_tensor(points, dtype=tf.float32)
-    for model_type in range(0,1):
+    for model_type in range(1,3):
         DAriA = AriEL(
             vocabSize=vocabSize,
             embDim=embDim,
@@ -81,8 +81,8 @@ def main_test(
             max_senLen=max_senLen,
             output_type='both',
             language_model=None,
-            encoder_type=0,
-            decoder_type=model_type,
+            encoder_type=model_type,
+            decoder_type=0,
             PAD=0
         )
 
@@ -99,7 +99,7 @@ def main_test(
             options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
             for i in range(n_profiles):
-                sess.run(encoder_model,
+                sess.run(continuous_output,
                          options=options,
                          run_metadata=run_metadata)
 
@@ -110,7 +110,6 @@ def main_test(
                     f.write(chrome_trace)
                 ex.add_artifact(destination_json)
 
-        """
         _log.info('\n##########################################')
         _log.info('           AriEL Decoder {}'.format(model_type))
         _log.info('##########################################\n')
@@ -125,16 +124,14 @@ def main_test(
             options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
             for i in range(n_profiles):
-                sess.run(decoder_model,
+                sess.run(point,
                          options=options,
                          run_metadata=run_metadata)
 
                 fetched_timeline = timeline.Timeline(run_metadata.step_stats)
                 chrome_trace = fetched_timeline.generate_chrome_trace_format()
                 destination_json = 'experiments/timeline_Dtype_{}_step_{}.json'.format(model_type, i)
-                print('\n\n\n\n\n\n', destination_json, '\n\n\n\n\n\n')
                 with open(destination_json, 'w') as f:
                     f.write(chrome_trace)
                 ex.add_artifact(destination_json)
-        """
 

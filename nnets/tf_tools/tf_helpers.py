@@ -250,17 +250,17 @@ def showGradientsAndTrainableParams(model):
     logger.info('Non-trainable params: {:,}'.format(non_trainable_count))
 
 
-def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j):
+def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, tf_curDim):
     vocabSize = tf.shape(softmax)[-1]
     latDim = tf.shape(low_bound)[-1]
 
     s = s_j[:, 0]
-    d_oh = tf.one_hot(self.curDim * tf.ones_like(s), latDim)
+    d_oh = tf.one_hot(tf_curDim * tf.ones_like(s), latDim)
     _d_oh = tf.subtract(tf.ones(latDim), d_oh, name='d_inv_oh')
 
     c_upp = K.cumsum(softmax, axis=1)
     c_low = tf.cumsum(softmax, axis=1, exclusive=True)
-    range_ = upp_bound[:, self.curDim] - low_bound[:, self.curDim]
+    range_ = upp_bound[:, tf_curDim] - low_bound[:, tf_curDim]
 
     s_oh = tf.one_hot(s, vocabSize)
 
@@ -269,13 +269,13 @@ def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j):
 
     # up bound
     upp_update = range_ * tf.reduce_sum(c_upp * s_oh, axis=1)
-    updated_upp = tf.add(low_bound[:, self.curDim], upp_update)[:, tf.newaxis] * d_oh
+    updated_upp = tf.add(low_bound[:, tf_curDim], upp_update)[:, tf.newaxis] * d_oh
 
     upp_bound = tf.add(upp_bound * _d_oh, updated_upp)
 
     # low bound
     low_update = range_ * tf.reduce_sum(c_low * s_oh, axis=1)
-    updated_low = tf.add(low_bound[:, self.curDim], low_update)[:, tf.newaxis] * d_oh
+    updated_low = tf.add(low_bound[:, tf_curDim], low_update)[:, tf.newaxis] * d_oh
 
     low_bound = tf.add(low_bound * _d_oh, updated_low)
 
