@@ -2,7 +2,6 @@ import logging
 
 import numpy as np
 import tensorflow as tf
-from numpy.random import seed
 from prettytable import PrettyTable
 
 tf.compat.v1.disable_eager_execution()
@@ -14,7 +13,7 @@ from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, 
     dynamic_zeros, replace_column, slice_from_to, tf_update_bounds_encoder
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
 
-seed(3)
+np.random.seed(1)
 tf.set_random_seed(2)
 
 logging.getLogger().setLevel(logging.INFO)
@@ -219,7 +218,7 @@ def ArielEncoderLayer2(
                              size_latDim=size_latDim,
                              language_model=language_model,
                              PAD=PAD)
-    rnn = RNN([cell], return_sequences=True, return_state=False, name='AriEL_encoder')
+    rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
 
     input_question = Input(shape=(None,), name='question')
     expanded = ExpandDims(axis=2)(input_question)
@@ -315,17 +314,17 @@ class ArielEncoderCell2(Layer):
         timeStepVector = tf.tile(timeStep[tf.newaxis, :], [b, 1])
 
         new_state = [low_bound, upp_bound, tokens, z, curDimVector, timeStepVector]
-        output = z, low_bound, upp_bound, pred_t[tf.newaxis]
+        output = z
 
         return output, new_state
 
 
-def test_1():
+def test():
     vocabSize, batch_size, max_senLen = 3, 6, 5
     latDim = 2
 
     input_questions = Input((None,))
-    encoded = ArielEncoderLayer2(PAD=0,
+    encoded = ArielEncoderLayer1(PAD=0,
                                  vocabSize=vocabSize,
                                  latDim=latDim,
                                  max_senLen=max_senLen, )(input_questions)
@@ -337,36 +336,13 @@ def test_1():
 
     t = PrettyTable()
 
-    results = [sentences] + prediction[1:] #[prediction]
+    results = [sentences] [prediction]
     for a in zip(*results):
         t.add_row([y for y in a])
 
     t.add_row([y.shape for y in results])
     print(t)
 
-
-def test_2():
-    vocabSize, batch_size, max_senLen = 3, 1, 5
-    latDim = 2
-
-    input_questions = Input((None,))
-    encoded = ArielEncoderLayer2(PAD=0,
-                                 vocabSize=vocabSize,
-                                 latDim=latDim,
-                                 max_senLen=max_senLen)(input_questions)
-    model = Model(input_questions, encoded)
-
-    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
-    prediction = model.predict(sentences)
-
-    t = PrettyTable()
-
-    results = prediction
-    for a in zip(*results):
-        t.add_row([y for y in a])
-
-    t.add_row([y.shape for y in results])
-    print(t)
 
 if __name__ == '__main__':
-    test_2()
+    test()
