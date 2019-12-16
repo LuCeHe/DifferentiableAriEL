@@ -5,11 +5,6 @@ import sys
 import numpy
 from prettytable import PrettyTable
 
-from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
-from GenericTools.LeanguageTreatmentTools.sentenceGenerators import GzipToNextStepGenerator
-from GenericTools.SacredTools.VeryCustomSacred import CustomFileStorageObserver
-from GenericTools.StayOrganizedTools.utils import timeStructured
-
 numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
 
 import numpy as np
@@ -25,18 +20,22 @@ tf.compat.v1.disable_eager_execution()
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import load_model
-from tensorflow.keras.callbacks import TensorBoard
 from keras.backend.tensorflow_backend import set_session
 
 from DifferentiableAriEL.nnets.AriEL import AriEL
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
+from sacred.observers import FileStorageObserver
+
+from DifferentiableAriEL.convenience_tools.utils import train_language_model_curriculum_learning
+from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
+from GenericTools.LeanguageTreatmentTools.sentenceGenerators import GzipToNextStepGenerator, GzipToIndicesGenerator
+from GenericTools.StayOrganizedTools.utils import timeStructured
 
 ex = Experiment('LSNN_AE')
-# ex.observers.append(FileStorageObserver.create("experiments"))
-ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
+ex.observers.append(FileStorageObserver.create("experiments"))
+# ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
 
 # ex.observers.append(MongoObserver())
 ex.captured_out_filter = apply_backspaces_and_linefeeds
@@ -76,7 +75,7 @@ def cfg():
     if not os.path.isdir(temp_folder): os.mkdir(temp_folder)
 
     LM_path = temp_folder + 'LM_model_REBER.h5'
-    logPath = temp_folder + 'logs/' + time_string + '_'
+    log_path = temp_folder + 'logs/' + time_string + '_'
 
     grammar_filepath = '../data/simplerREBER_grammar.cfg'
     gzip_filepath = '../data/REBER_biased_train.gz'
@@ -91,23 +90,14 @@ def cfg():
     latDim = 16  # 2
 
     epochs = 10
-    steps_per_epoch = 1e3
+    steps_per_epoch = 1e4
     batch_size = 256
+
+    do_train = True
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocabSize = vocabulary.getMaxVocabularySize()
-
     embDim = int(np.sqrt(vocabSize) + 1)
-
-    PAD = vocabulary.padIndex
-    START = vocabulary.startIndex
-    END = vocabulary.endIndex
-
-    choices = [[START, END],
-               [START, END],
-               [START, END],
-               [START, END]
-               ]
 
     del vocabulary
 
@@ -117,7 +107,6 @@ def checkGeneration(
         LM,
         latDim,
         vocabSize,
-        PAD,
         embDim,
         max_senLen,
         encoder_type,
@@ -126,6 +115,7 @@ def checkGeneration(
         grammar_filepath
 ):
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
+    PAD = vocabulary.padIndex
 
     points = np.random.rand(100, latDim)
 
@@ -156,18 +146,19 @@ def checkGeneration(
 
 @ex.capture
 def checkRandomReconstruction(
+        grammar_filepath,
         LM,
         latDim,
         vocabSize,
-        PAD,
         embDim,
-        choices,
         max_senLen,
         encoder_type,
         decoder_type,
         size_latDim,
-        batch_size
-):
+        batch_size):
+    vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
+    PAD = vocabulary.padIndex
+
     ariel = AriEL(
         vocabSize=vocabSize,
         embDim=embDim,
@@ -210,17 +201,18 @@ def checkRandomReconstruction(
 @ex.capture
 def checkTrainingReconstruction(
         LM,
+        grammar_filepath,
         sentences,
         latDim,
         vocabSize,
-        PAD,
         embDim,
-        choices,
         max_senLen,
         encoder_type,
         decoder_type,
-        size_latDim
-):
+        size_latDim):
+    vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
+    PAD = vocabulary.padIndex
+
     sentences = sentences[:, :max_senLen]
     max_senLen = sentences.shape[1]
     ariel = AriEL(
@@ -269,28 +261,34 @@ def test_2d_visualization_trainOutside(
         vocabSize,
         embDim,
         LM_path, epochs, steps_per_epoch,
-        logPath,
-        _log
-):
+        log_path,
+        do_train,
+        _log):
     generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
 
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
-    if not os.path.isfile(LM_path):
-        LM = predefined_model(vocabSize, embDim)
-        LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['categorical_accuracy'])
-        callbacks = []
-        callbacks.append(TensorBoard(
-            logPath,
-            histogram_freq=int(epochs / 20) + 1,
-            write_graph=False,
-            write_grads=True,
-            write_images=False,
-            batch_size=10
-        ))
-
-        LM.fit_generator(generator, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=callbacks)
-        LM.save(LM_path)
+    if not os.path.isfile(LM_path) or do_train:
+        """
+        LM = train_language_model(
+            generator,
+            vocabSize,
+            embDim,
+            epochs,
+            steps_per_epoch,
+            LM_path,
+            log_path)
+        """
+        LM = train_language_model_curriculum_learning(
+            gzip_filepath,
+            grammar_filepath,
+            batch_size,
+            vocabSize,
+            embDim,
+            epochs,
+            steps_per_epoch,
+            LM_path,
+            log_path)
     else:
         LM = load_model(LM_path)
 
@@ -311,12 +309,12 @@ def test_2d_visualization_trainOutside(
 
     print('\n   Check AriEL Random Data Reconstruction   \n')
 
-    # for LanMod in [None, LM]:
-    #    checkRandomReconstruction(LM=LanMod)
+    for LanMod in [None, LM]:
+        checkRandomReconstruction(LM=LanMod)
 
     print('\n   Check AriEL Training Data Reconstruction   \n')
 
-    # generator = GzipToIndicesGenerator(gzip_filepath, grammar_filepath, batch_size)
-    # sentences = next(generator)
-    # for LanMod in [None, LM]:
-    #    checkTrainingReconstruction(LM=LanMod, sentences=sentences)
+    generator = GzipToIndicesGenerator(gzip_filepath, grammar_filepath, batch_size)
+    sentences = next(generator)
+    for LanMod in [None, LM]:
+        checkTrainingReconstruction(LM=LanMod, sentences=sentences)
