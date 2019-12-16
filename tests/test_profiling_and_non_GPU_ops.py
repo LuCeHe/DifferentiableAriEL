@@ -1,20 +1,16 @@
+import logging
+
 import tensorflow as tf
+from sacred import Experiment
+from sacred.observers import FileStorageObserver
+from sacred.stflow import LogFileWriter
+from sacred.utils import apply_backspaces_and_linefeeds
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.python.client import timeline
 
 from DifferentiableAriEL.nnets.AriEL import AriEL
 from GenericTools.LeanguageTreatmentTools.random import random_sequences_and_points
-from GenericTools.SacredTools.CustomSacred import CustomExperiment
-import logging
-import os
-import pathlib
-from time import strftime, localtime
-
-from sacred import Experiment
-from sacred.observers import FileStorageObserver
-from sacred.utils import apply_backspaces_and_linefeeds
-from sacred.stflow import LogFileWriter
 
 ex = Experiment('ED_versions')
 ex.observers.append(FileStorageObserver.create("experiments"))
@@ -30,13 +26,13 @@ ch = logging.StreamHandler()
 formatter = logging.Formatter('[%(levelname).1s] %(name)s >> "%(message)s"')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-#logger.setLevel('INFO')
+# logger.setLevel('INFO')
 
 # attach it to the experiment
 ex.logger = logger
 
 
-#ex = CustomExperiment('ED_versions')
+# ex = CustomExperiment('ED_versions')
 
 
 @ex.config
@@ -47,6 +43,7 @@ def cfg():
     vocabSize = 2
     embDim = 1
     n_profiles = 3
+
 
 @ex.automain
 @LogFileWriter(ex)
@@ -73,7 +70,7 @@ def main_test(
 
     tf_sentences = tf.convert_to_tensor(sentences, dtype=tf.float32)
     tf_points = tf.convert_to_tensor(points, dtype=tf.float32)
-    for model_type in range(0,3):
+    for model_type in range(0, 3):
         DAriA = AriEL(
             vocabSize=vocabSize,
             embDim=embDim,
@@ -118,7 +115,6 @@ def main_test(
         point = DAriA.decode(input_point)
         decoder_model = Model(inputs=input_point, outputs=point)
 
-
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
 
@@ -135,4 +131,3 @@ def main_test(
                 with open(destination_json, 'w') as f:
                     f.write(chrome_trace)
                 ex.add_artifact(destination_json)
-
