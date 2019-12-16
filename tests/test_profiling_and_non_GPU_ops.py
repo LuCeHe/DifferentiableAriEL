@@ -118,6 +118,7 @@ def main_test(
         point = DAriA.decode(input_point)
         decoder_model = Model(inputs=input_point, outputs=point)
 
+
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
 
