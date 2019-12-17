@@ -1,7 +1,7 @@
 import os
 import sys
 
-from GenericTools.SacredTools.CustomSacred import CustomExperiment
+from GenericTools.SacredTools.VeryCustomSacred import CustomExperiment
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
