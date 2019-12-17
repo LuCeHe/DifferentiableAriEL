@@ -96,11 +96,11 @@ def train_language_model_curriculum_learning(
             #generator = MockDataGenerator(batch_size=batch_size, maxlen=maxlen)
             LM.fit_generator(
                 generator,
-                epochs=1,
-                use_multiprocessing=True,
+                epochs=epochs,
+                use_multiprocessing=False,
                 steps_per_epoch=steps_per_epoch,
                 #verbose=2,
-                workers=8)
+                workers=1)
             LM.save(LM_path)
 
     except KeyboardInterrupt:

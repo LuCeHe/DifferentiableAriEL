@@ -90,8 +90,8 @@ def cfg():
     latDim = 16  # 2
 
     epochs = 10
-    steps_per_epoch = 3900  #1e4
-    batch_size = 256 #256
+    batch_size = 1024 #256
+    steps_per_epoch = int(1e6/batch_size)
 
     do_train = True
 
@@ -290,7 +290,8 @@ def test_2d_visualization_trainOutside(
             log_path)
     else:
         LM = load_model(LM_path)
-
+        
+    """
     print('\n   Check LM   \n')
     
     generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
@@ -319,3 +320,4 @@ def test_2d_visualization_trainOutside(
     sentences = next(generator)
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
+    """
