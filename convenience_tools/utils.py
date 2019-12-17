@@ -103,7 +103,6 @@ def train_language_model_curriculum_learning(
                 maxlen=maxlen,
                 nb_lines=nb_lines)
             train_generator = GzipToNextToken_KerasGenerator(gzip_filepath=train_gzip, **generators_params)
-
             val_generator = GzipToNextToken_KerasGenerator(gzip_filepath=val_gzip, **generators_params)
 
             LM.fit_generator(
@@ -121,6 +120,67 @@ def train_language_model_curriculum_learning(
 
     return LM
 
+
+
+def train_language_model_transformer(
+        train_gzip,
+        val_gzip,
+        grammar_filepath,
+        batch_size,
+        vocab_size,
+        emb_dim,
+        units,
+        epochs,
+        nb_lines,
+        LM_path,
+        log_path):
+    LM = predefined_model(vocab_size, emb_dim, units)
+    LM.summary()
+    LM.compile(
+        loss='categorical_crossentropy',
+        optimizer='SGD',
+        metrics=['categorical_accuracy'])
+
+    callbacks = []
+    """
+    tb = TensorBoard(
+        log_path,
+        histogram_freq=int(epochs / 20) + 1,
+        write_graph=False,
+        write_grads=True,
+        write_images=False,
+        batch_size=10
+    )
+    """
+    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=int(1*epochs/4))
+    callbacks.extend([es])
+
+    maxlen = None
+    try:
+        generators_params = {}
+        generators_params.update(
+            grammar_filepath=grammar_filepath,
+            batch_size=batch_size,
+            maxlen=maxlen,
+            nb_lines=nb_lines)
+        train_generator = GzipToNextToken_KerasGenerator(gzip_filepath=train_gzip, **generators_params)
+        val_generator = GzipToNextToken_KerasGenerator(gzip_filepath=val_gzip, **generators_params)
+
+
+        LM.fit_generator(
+            generator=train_generator,
+            validation_data=val_generator,
+            epochs=epochs,
+            callbacks=callbacks,
+            use_multiprocessing=False,
+            workers=1)
+
+    except KeyboardInterrupt:
+        print("Training interrupted by the user")
+
+    LM.save(LM_path)
+
+    return LM
 
 if __name__ == '__main__':
     gzipDatasetFilepath = '../data/REBER_biased_train.gz'
