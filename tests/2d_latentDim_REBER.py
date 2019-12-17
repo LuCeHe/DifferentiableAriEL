@@ -85,9 +85,9 @@ def cfg():
     max_senLen = 200
     encoder_type = 0
     decoder_type = 0
-    size_latDim = 1e6
+    size_lat_dim = 1e6
 
-    latDim = 16  # 2
+    lat_dim = 16  # 2
 
     epochs = 10
     batch_size = 1024 #256
@@ -96,8 +96,8 @@ def cfg():
     do_train = True
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
-    vocabSize = vocabulary.getMaxVocabularySize()
-    embDim = int(np.sqrt(vocabSize) + 1)
+    vocab_size = vocabulary.getMaxVocabularySize()
+    emb_dim = int(np.sqrt(vocab_size) + 1)
 
     del vocabulary
 
@@ -105,34 +105,34 @@ def cfg():
 @ex.capture
 def checkGeneration(
         LM,
-        latDim,
-        vocabSize,
-        embDim,
+        lat_dim,
+        vocab_size,
+        emb_dim,
         max_senLen,
         encoder_type,
         decoder_type,
-        size_latDim,
+        size_lat_dim,
         grammar_filepath):
     
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
-    points = np.random.rand(100, latDim)
+    points = np.random.rand(100, lat_dim)
 
     ariel = AriEL(
-        vocabSize=vocabSize,
-        embDim=embDim,
-        latDim=latDim,
+        vocab_size=vocab_size,
+        emb_dim=emb_dim,
+        lat_dim=lat_dim,
         max_senLen=max_senLen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
         decoder_type=decoder_type,
-        size_latDim=size_latDim,
+        size_lat_dim=size_lat_dim,
         PAD=PAD
     )
 
-    input_point = Input(shape=(latDim,), name='question')
+    input_point = Input(shape=(lat_dim,), name='question')
     point = ariel.decode(input_point)
     decoder_model = Model(inputs=input_point, outputs=point)
 
@@ -148,27 +148,27 @@ def checkGeneration(
 def checkRandomReconstruction(
         grammar_filepath,
         LM,
-        latDim,
-        vocabSize,
-        embDim,
+        lat_dim,
+        vocab_size,
+        emb_dim,
         max_senLen,
         encoder_type,
         decoder_type,
-        size_latDim,
+        size_lat_dim,
         batch_size):
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
     ariel = AriEL(
-        vocabSize=vocabSize,
-        embDim=embDim,
-        latDim=latDim,
+        vocab_size=vocab_size,
+        emb_dim=emb_dim,
+        lat_dim=lat_dim,
         max_senLen=max_senLen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
         decoder_type=decoder_type,
-        size_latDim=size_latDim,
+        size_lat_dim=size_lat_dim,
         PAD=PAD
     )
 
@@ -177,7 +177,7 @@ def checkRandomReconstruction(
     discrete_output = ariel.decode(continuous_output)
     reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
 
-    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
     prediction = reconstruction_model.predict(sentences).astype(int)
 
     t = PrettyTable(['sentences', 'reconstructions'])
@@ -203,28 +203,28 @@ def checkTrainingReconstruction(
         LM,
         grammar_filepath,
         sentences,
-        latDim,
-        vocabSize,
-        embDim,
+        lat_dim,
+        vocab_size,
+        emb_dim,
         max_senLen,
         encoder_type,
         decoder_type,
-        size_latDim):
+        size_lat_dim):
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
     sentences = sentences[:, :max_senLen]
     max_senLen = sentences.shape[1]
     ariel = AriEL(
-        vocabSize=vocabSize,
-        embDim=embDim,
-        latDim=latDim,
+        vocab_size=vocab_size,
+        emb_dim=emb_dim,
+        lat_dim=lat_dim,
         max_senLen=max_senLen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
         decoder_type=decoder_type,
-        size_latDim=size_latDim,
+        size_lat_dim=size_lat_dim,
         PAD=PAD
     )
 
@@ -258,8 +258,8 @@ def test_2d_visualization_trainOutside(
         gzip_filepath,
         grammar_filepath,
         batch_size,
-        vocabSize,
-        embDim,
+        vocab_size,
+        emb_dim,
         LM_path, epochs, steps_per_epoch,
         log_path,
         do_train,
@@ -271,8 +271,8 @@ def test_2d_visualization_trainOutside(
         """
         LM = train_language_model(
             generator,
-            vocabSize,
-            embDim,
+            vocab_size,
+            emb_dim,
             epochs,
             steps_per_epoch,
             LM_path,
@@ -282,8 +282,8 @@ def test_2d_visualization_trainOutside(
             gzip_filepath,
             grammar_filepath,
             batch_size,
-            vocabSize,
-            embDim,
+            vocab_size,
+            emb_dim,
             epochs,
             steps_per_epoch,
             LM_path,

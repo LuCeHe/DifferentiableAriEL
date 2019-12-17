@@ -120,24 +120,24 @@ class SelfAdjustingGaussianNoise(Layer):
 """
 
 
-def predefined_model(vocabSize, embDim):
-    embedding = Embedding(vocabSize, embDim, mask_zero='True')
+def predefined_model(vocab_size, emb_dim):
+    embedding = Embedding(vocab_size, emb_dim, mask_zero='True')
     lstm = LSTM(256, return_sequences=False)
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
     lstm_output = lstm(embed)
-    softmax = Dense(vocabSize, activation='softmax')(lstm_output)
+    softmax = Dense(vocab_size, activation='softmax')(lstm_output)
 
     return Model(inputs=input_question, outputs=softmax)
 
 
 class UpdateBoundsEncoder(Layer):
 
-    def __init__(self, latDim, vocabSize, curDim, **kwargs):
+    def __init__(self, lat_dim, vocab_size, curDim, **kwargs):
         super(UpdateBoundsEncoder, self).__init__(**kwargs)
 
-        self.latDim, self.vocabSize, self.curDim = latDim, vocabSize, curDim
+        self.lat_dim, self.vocab_size, self.curDim = lat_dim, vocab_size, curDim
 
     def call(self, inputs, training=None):
         low_bound, upp_bound, softmax, s_j = inputs
@@ -183,17 +183,17 @@ class UpdateBoundsDecoder(Layer):
 
 class FindSymbolAndBounds(Layer):
 
-    def __init__(self, vocabSize, curDim, **kwargs):
+    def __init__(self, vocab_size, curDim, **kwargs):
         super(FindSymbolAndBounds, self).__init__(**kwargs)
 
-        self.vocabSize, self.curDim = vocabSize, curDim
+        self.vocab_size, self.curDim = vocab_size, curDim
 
     def call(self, inputs, training=None):
         Ls, Us, low_bound, upp_bound, input_point = inputs
 
         s = pzToSymbol_withArgmax(Us, Ls, input_point[:, self.curDim, tf.newaxis])
         # s = tf.cast(s, dtype=tf.int32)
-        s_oh = tf.one_hot(s, self.vocabSize)
+        s_oh = tf.one_hot(s, self.vocab_size)
 
         new_L_column = tf.reduce_sum(Ls * s_oh, axis=1)
         low_bound = replace_column(low_bound, new_L_column, self.curDim)

@@ -35,14 +35,14 @@ set_random_seed(2)
 logger = logging.getLogger(__name__)
 
 
-def predefined_model(vocabSize, embDim):
-    embedding = Embedding(vocabSize, embDim, mask_zero='True')
+def predefined_model(vocab_size, emb_dim):
+    embedding = Embedding(vocab_size, emb_dim, mask_zero='True')
     lstm = LSTM(128, return_sequences=False)
     
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
     lstm_output = lstm(embed)
-    softmax = Dense(vocabSize, activation='softmax')(lstm_output)
+    softmax = Dense(vocab_size, activation='softmax')(lstm_output)
     
     return Model(inputs=input_question, outputs=softmax)
                  
@@ -121,15 +121,15 @@ def clip_layer(inputs, min_value, max_value):
         
 
 
-def DAriEL_Encoder_model(vocabSize=101,
-                         embDim=2,
-                         latDim=4,
+def DAriEL_Encoder_model(vocab_size=101,
+                         emb_dim=2,
+                         lat_dim=4,
                          language_model=None,
                          max_senLen=6,
                          startId=None):      
     
-    layer = DAriEL_Encoder_Layer(vocabSize=vocabSize, embDim=embDim,
-                                 latDim=latDim, language_model=language_model,
+    layer = DAriEL_Encoder_Layer(vocab_size=vocab_size, emb_dim=emb_dim,
+                                 lat_dim=lat_dim, language_model=language_model,
                                  max_senLen=max_senLen, startId=startId)        
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
@@ -141,24 +141,24 @@ def DAriEL_Encoder_model(vocabSize=101,
 class DAriEL_Encoder_Layer(object):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  language_model=None,
                  max_senLen=6,
                  startId=None,
                  softmaxes=False):  
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              language_model=language_model,
                              max_senLen=max_senLen,
                              startId=startId,
                              softmaxes=softmaxes)
         
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)           
+            self.language_model = predefined_model(vocab_size, emb_dim)
             
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
         if not self.startId == 0: raise ValueError('Currently the model works only for startId == 0 ;) ')
@@ -183,7 +183,7 @@ class DAriEL_Encoder_Layer(object):
             
         final_softmaxes = Lambda(slice_)(final_softmaxes)
         
-        point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
+        point = probsToPoint(self.vocab_size, self.lat_dim)([final_softmaxes, input_questions])
         
         if not self.softmaxes:
             return point
@@ -193,9 +193,9 @@ class DAriEL_Encoder_Layer(object):
 
 class probsToPoint(object):
 
-    def __init__(self, vocabSize=2, latDim=3):
+    def __init__(self, vocab_size=2, lat_dim=3):
         # super(vAriEL_Encoder, self).__init__()
-        self.__dict__.update(vocabSize=vocabSize, latDim=latDim)
+        self.__dict__.update(vocab_size=vocab_size, lat_dim=lat_dim)
     
     def __call__(self, inputs):
         softmax, input_questions = inputs
@@ -213,15 +213,15 @@ class probsToPoint(object):
             # for p_ij, c_ij, token_i in zip(listProbs, cumsums, listTokens):
             
             listTokens = tf.to_int32(listTokens)
-            one_hot = K.one_hot(listTokens, self.vocabSize)
+            one_hot = K.one_hot(listTokens, self.vocab_size)
             
             p_iti = K.sum(listProbs * one_hot, axis=2)
             c_iti = K.sum(cumsums * one_hot, axis=2)
             
             # Create another vector containing zeroes to pad `a` to (2 * 3) elements.
-            zero_padding = Lambda(dynamic_zeros, arguments={'d': self.latDim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
+            zero_padding = Lambda(dynamic_zeros, arguments={'d': self.lat_dim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
             zero_padding = K.squeeze(zero_padding, axis=1)
-            ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
+            ones_padding = Lambda(dynamic_ones, arguments={'d': self.lat_dim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
             ones_padding = K.squeeze(ones_padding, axis=1)
             
             # Concatenate `a_as_vector` with the padding.
@@ -229,8 +229,8 @@ class probsToPoint(object):
             c_padded = tf.concat([c_iti, zero_padding], 1)
             
             # Reshape the padded vector to the desired shape.
-            p_latent = tf.reshape(p_padded, [-1, tf.shape(p_iti)[1], self.latDim])
-            c_latent = tf.reshape(c_padded, [-1, tf.shape(c_iti)[1], self.latDim])
+            p_latent = tf.reshape(p_padded, [-1, tf.shape(p_iti)[1], self.lat_dim])
+            c_latent = tf.reshape(c_padded, [-1, tf.shape(c_iti)[1], self.lat_dim])
             
             # calculate the final position determined by AriEL
             p_cumprod = tf.cumprod(p_latent, axis=1, exclusive=True)
@@ -247,19 +247,19 @@ class probsToPoint(object):
         return pointLatentDim
 
 
-def DAriEL_Decoder_model(vocabSize=101,
-                         embDim=2,
-                         latDim=4,
+def DAriEL_Decoder_model(vocab_size=101,
+                         emb_dim=2,
+                         lat_dim=4,
                          max_senLen=10,
                          language_model=None,
                          startId=None,
                          output_type='both'):  
     
-    layer = DAriEL_Decoder_Layer(vocabSize=vocabSize, embDim=embDim,
-                                 latDim=latDim, max_senLen=max_senLen,
+    layer = DAriEL_Decoder_Layer(vocab_size=vocab_size, emb_dim=emb_dim,
+                                 lat_dim=lat_dim, max_senLen=max_senLen,
                                  language_model=language_model, startId=startId,
                                  output_type=output_type)
-    input_point = Input(shape=(latDim,), name='input_point')
+    input_point = Input(shape=(lat_dim,), name='input_point')
     discrete_sequence_output = layer(input_point)    
     model = Model(inputs=input_point, outputs=discrete_sequence_output)
     return model
@@ -268,17 +268,17 @@ def DAriEL_Decoder_model(vocabSize=101,
 class DAriEL_Decoder_Layer(object):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=10,
                  language_model=None,
                  startId=None,
                  output_type='both'):  
         
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              startId=startId,
@@ -287,7 +287,7 @@ class DAriEL_Decoder_Layer(object):
         # if the input is a rnn, use that, otherwise use an LSTM
         
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)          
+            self.language_model = predefined_model(vocab_size, emb_dim)
         
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
     
@@ -295,12 +295,12 @@ class DAriEL_Decoder_Layer(object):
             
         # FIXME: I think arguments passed this way won't be saved with the model
         # follow instead: https://github.com/keras-team/keras/issues/1879
-        # RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.embDim})(input_point)   
-        # RNN_starter = Lambda(dynamic_fill, arguments={'d': self.embDim, 'value': .5})(input_point)
+        # RNN_starter = Lambda(dynamic_zeros, arguments={'d': self.emb_dim})(input_point)
+        # RNN_starter = Lambda(dynamic_fill, arguments={'d': self.emb_dim, 'value': .5})(input_point)
 
-        output = pointToProbs(vocabSize=self.vocabSize,
-                              latDim=self.latDim,
-                              embDim=self.embDim,
+        output = pointToProbs(vocab_size=self.vocab_size,
+                              lat_dim=self.lat_dim,
+                              emb_dim=self.emb_dim,
                               max_senLen=self.max_senLen,
                               language_model=self.language_model,
                               startId=self.startId,
@@ -312,9 +312,9 @@ class DAriEL_Decoder_Layer(object):
 class pointToProbs(object):
 
     def __init__(self,
-                 vocabSize=2,
-                 latDim=3,
-                 embDim=2,
+                 vocab_size=2,
+                 lat_dim=3,
+                 emb_dim=2,
                  max_senLen=10,
                  language_model=None,
                  startId=None,
@@ -323,8 +323,8 @@ class pointToProbs(object):
         inputs:
             output_type: 'tokens', 'softmaxes' or 'both'
         """
-        self.__dict__.update(vocabSize=vocabSize, latDim=latDim,
-                             embDim=embDim, max_senLen=max_senLen,
+        self.__dict__.update(vocab_size=vocab_size, lat_dim=lat_dim,
+                             emb_dim=emb_dim, max_senLen=max_senLen,
                              language_model=language_model,
                              startId=startId,
                              output_type=output_type)
@@ -360,7 +360,7 @@ class pointToProbs(object):
             cumsum_exclusive = tf.cumsum(one_softmax, axis=2, exclusive=True)
             cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
 
-            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocabSize, 1)                
+            value_of_interest = tf.concat([expanded_unfolding_point[:, :, curDim]] * self.vocab_size, 1)
             
             # determine the token selected (2 steps: xor and token)
             # differentiable xor (instead of tf.logical_xor)                
@@ -387,7 +387,7 @@ class pointToProbs(object):
             # next round on this dimension                
             c_iti_value = tf.matmul(xor, cumsum_exclusive, transpose_b=True)
             c_iti_value = tf.squeeze(c_iti_value, axis=1)
-            one_hots = dynamic_one_hot(one_softmax, self.latDim, curDim)
+            one_hots = dynamic_one_hot(one_softmax, self.lat_dim, curDim)
             one_hots = tf.squeeze(one_hots, axis=1)
             
             c_iti = c_iti_value * one_hots
@@ -395,12 +395,12 @@ class pointToProbs(object):
             
             # the p_iti value has to be divided to the point for the next
             # round on this dimension                
-            one_hots = dynamic_one_hot(one_softmax, self.latDim, curDim)
+            one_hots = dynamic_one_hot(one_softmax, self.lat_dim, curDim)
             one_hots = tf.squeeze(one_hots, axis=1)
             p_iti_value = tf.matmul(xor, one_softmax, transpose_b=True)
             p_iti_value = K.squeeze(p_iti_value, axis=1)
             p_iti_and_zeros = p_iti_value * one_hots
-            ones = dynamic_ones(one_softmax, self.latDim)
+            ones = dynamic_ones(one_softmax, self.lat_dim)
             ones = K.squeeze(ones, axis=1)
             p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
             p_iti = tf.subtract(p_iti_plus_ones, one_hots)
@@ -434,7 +434,7 @@ class pointToProbs(object):
             
             # NOTE: at each iteration, change the dimension
             curDim += 1
-            if curDim >= self.latDim:
+            if curDim >= self.lat_dim:
                 curDim = 0
         
         # remove last softmax, since the initial was given by the an initial
@@ -463,17 +463,17 @@ class pointToProbs(object):
 class Differentiable_AriEL(object):
 
     def __init__(self,
-                 vocabSize=5,
-                 embDim=2,
-                 latDim=3,
+                 vocab_size=5,
+                 emb_dim=2,
+                 lat_dim=3,
                  language_model=None,
                  startId=None,
                  max_senLen=10,
                  output_type='both'):
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             latDim=latDim,
-                             embDim=embDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             lat_dim=lat_dim,
+                             emb_dim=emb_dim,
                              language_model=language_model,
                              startId=startId,
                              max_senLen=max_senLen,
@@ -485,22 +485,22 @@ class Differentiable_AriEL(object):
         
         # if the input is a rnn, use that, otherwise use an LSTM
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
             
         if self.startId == None: raise ValueError('Define the startId you are using ;) ')
         
         # FIXME: clarify what to do with the padding and EOS
-        # vocabSize + 1 for the keras padding + 1 for EOS        
-        self.DAriA_encoder = DAriEL_Encoder_Layer(vocabSize=self.vocabSize,
-                                                  embDim=self.embDim,
-                                                  latDim=self.latDim,
+        # vocab_size + 1 for the keras padding + 1 for EOS
+        self.DAriA_encoder = DAriEL_Encoder_Layer(vocab_size=self.vocab_size,
+                                                  emb_dim=self.emb_dim,
+                                                  lat_dim=self.lat_dim,
                                                   language_model=self.language_model,
                                                   max_senLen=self.max_senLen,
                                                   startId=self.startId)
         
-        self.DAriA_decoder = DAriEL_Decoder_Layer(vocabSize=self.vocabSize,
-                                                  embDim=self.embDim,
-                                                  latDim=self.latDim,
+        self.DAriA_decoder = DAriEL_Decoder_Layer(vocab_size=self.vocab_size,
+                                                  emb_dim=self.emb_dim,
+                                                  lat_dim=self.lat_dim,
                                                   max_senLen=self.max_senLen,
                                                   language_model=self.language_model,
                                                   startId=self.startId,
@@ -520,7 +520,7 @@ def test():
     sentences = np.array([[0, 0, 1, 2, 2],
                           [0, 1, 1, 1, 1],
                           [0, 0, 1, 1, 1]])
-    model = DAriEL_Encoder_model(vocabSize=3, startId=0)
+    model = DAriEL_Encoder_model(vocab_size=3, startId=0)
     prediction = model.predict(sentences)
     print(prediction)
 

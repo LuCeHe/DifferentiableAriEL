@@ -78,13 +78,13 @@ grammar = CFG.fromstring("""
                          """)
 
 
-vocabSize = 3  # this value is going to be overwriter after the sentences generator
+vocab_size = 3  # this value is going to be overwriter after the sentences generator
 max_senLen = 6
-batchSize = 128
+batch_size = 128
 # FIXME:
-# latDim = 7, embDim = 5 seems to explode with gaussian noise
-latDim = 16
-embDim = 5
+# lat_dim = 7, emb_dim = 5 seems to explode with gaussian noise
+lat_dim = 16
+emb_dim = 5
 
 epochs = 2
 steps_per_epoch = 1000
@@ -101,18 +101,18 @@ def main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
     generator = generator_class.generator()
 
-    vocabSize = generator_class.vocabSize    
+    vocab_size = generator_class.vocab_size
 
     ################################################################################
     # Define the main model, the autoencoder
     ################################################################################
     
-    DAriA_dcd = DAriEL(vocabSize=vocabSize,
-                                   embDim=embDim,
-                                   latDim=latDim,
+    DAriA_dcd = DAriEL(vocab_size=vocab_size,
+                                   emb_dim=emb_dim,
+                                   lat_dim=lat_dim,
                                    max_senLen=max_senLen,
                                    startId=generator_class.startId,
                                    output_type='both')
@@ -151,7 +151,7 @@ def main(categorical_TF=True):
     encoder_model = Model(inputs=encoder_input, outputs=continuous_latent_space)
     
     # reuse decoder to define a model to test generation capacity
-    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    decoder_input = Input(shape=(lat_dim,), name='decoder_input')
     discrete_output = DAriA_dcd.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
     
@@ -182,13 +182,13 @@ def main(categorical_TF=True):
         
         # FIXME: noise in the latent rep
         if epoch % latentTestRate == 0:
-            softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
+            softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batch_size, lat_dim)
 
             first_softmax_evolution.append(softmaxes[0][0])
             second_softmax_evolution.append(softmaxes[0][1])
             third_softmax_evolution.append(softmaxes[0][2])
 
-    #softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batchSize, latDim)
+    #softmaxes = checkDuringTraining(generator_class, indices_sentences[0], encoder_model, decoder_model, batch_size, lat_dim)
 
     print(first_softmax_evolution)
     plot_softmax_evolution(first_softmax_evolution, experiment_path + 'first_softmax_evolution')
@@ -211,17 +211,17 @@ def simpler_main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
     generator = generator_class.generator()
 
-    vocabSize = generator_class.vocabSize    
+    vocab_size = generator_class.vocab_size
 
     ################################################################################
     # Define the main model, the autoencoder
     ################################################################################
 
-    embedding = Embedding(vocabSize, embDim)
-    lstm = LSTM(vocabSize, return_sequences=True)
+    embedding = Embedding(vocab_size, emb_dim)
+    lstm = LSTM(vocab_size, return_sequences=True)
     
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
@@ -271,9 +271,9 @@ def simpler_main(categorical_TF=True):
     # Define the main model, the autoencoder
     ################################################################################
     
-    DAriA_dcd = Differential_AriEL(vocabSize = vocabSize,
-                                   embDim = embDim,
-                                   latDim = latDim,
+    DAriA_dcd = Differential_AriEL(vocab_size = vocab_size,
+                                   emb_dim = emb_dim,
+                                   lat_dim = lat_dim,
                                    max_senLen = max_senLen,
                                    output_type = 'both',
                                    embedding = embedding,
@@ -281,11 +281,11 @@ def simpler_main(categorical_TF=True):
                                    startId = generator_class.startId)
 
 
-    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    decoder_input = Input(shape=(lat_dim,), name='decoder_input')
     discrete_output = DAriA_dcd.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
     
-    noise = np.random.rand(batchSize, latDim)
+    noise = np.random.rand(batch_size, lat_dim)
     indicess, _ = decoder_model.predict(noise)
     sentences_generated = generator_class.indicesToSentences(indicess)
     
@@ -299,7 +299,7 @@ def simpler_main(categorical_TF=True):
         table.align[column] = "l"
     print(table)
     print('')
-    print('number unique generated sentences:  %s / %s (it should be only 3 / %s)'%(len(set(sentences_generated)), batchSize, batchSize))
+    print('number unique generated sentences:  %s / %s (it should be only 3 / %s)'%(len(set(sentences_generated)), batch_size, batch_size))
     print('')
     print(generator_class.vocabulary.indicesByTokens)
     print('')
@@ -318,22 +318,22 @@ def even_simpler_main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batchSize, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
     generator = generator_class.generator()
 
-    vocabSize = generator_class.vocabSize    
+    vocab_size = generator_class.vocab_size
 
     ################################################################################
     # Define the main model, the autoencoder
     ################################################################################
 
-    embedding = Embedding(vocabSize, embDim)
+    embedding = Embedding(vocab_size, emb_dim)
     lstm = LSTM(128, return_sequences=True)
     
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
     lstm_output = lstm(embed)
-    softmax = TimeDistributed(Dense(vocabSize, activation='softmax'))(lstm_output)
+    softmax = TimeDistributed(Dense(vocab_size, activation='softmax'))(lstm_output)
 
     optimizer = optimizers.Adam(lr=.001)  # , clipnorm=1.
     
@@ -407,27 +407,27 @@ def test_DAriEL_model_from_outside_v2():
           """)
 
     questions, points = random_sequences_and_points()
-    answers = to_categorical(questions[:,1], vocabSize)
+    answers = to_categorical(questions[:,1], vocab_size)
     print(answers)
-    LM = predefined_model(vocabSize, embDim)    
+    LM = predefined_model(vocab_size, emb_dim)
     LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
     
     LM.fit(questions, answers, epochs=10)    
 
-    DAriEL = Differentiable_AriEL(vocabSize = vocabSize,
-                                  embDim = embDim,
-                                  latDim = latDim,
+    DAriEL = Differentiable_AriEL(vocab_size = vocab_size,
+                                  emb_dim = emb_dim,
+                                  lat_dim = lat_dim,
                                   max_senLen = max_senLen,
                                   output_type = 'both',
                                   language_model = LM,
                                   startId = 0)
 
 
-    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    decoder_input = Input(shape=(lat_dim,), name='decoder_input')
     discrete_output = DAriEL.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
     
-    noise = np.random.rand(batchSize, latDim)
+    noise = np.random.rand(batch_size, lat_dim)
     indicess, _ = decoder_model.predict(noise)
 
     prediction = decoder_model.predict(points)

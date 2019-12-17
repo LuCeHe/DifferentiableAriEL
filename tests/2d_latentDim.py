@@ -49,16 +49,16 @@ def cfg():
                ]
     probabilities = [.25, .25, .25, .25]
 
-    latDim = 16  # 2
-    vocabSize = np.max(np.max(choices)) + 1
-    embDim = int(np.sqrt(vocabSize) + 1)
+    lat_dim = 16  # 2
+    vocab_size = np.max(np.max(choices)) + 1
+    emb_dim = int(np.sqrt(vocab_size) + 1)
 
     temp_folder = '../data/tmp/'
     if not os.path.isdir(temp_folder): os.mkdir(temp_folder)
 
     epochs = 1
     steps_per_epoch = 1e4
-    batchSize = 16
+    batch_size = 16
     LM_path = temp_folder + 'LM_model.h5'
 
 
@@ -75,17 +75,17 @@ def choices2NextStep(choices, probabilities):
 
 @ex.capture
 def checkSpaceCoverageDecoder(LM,
-                              latDim,
-                              vocabSize, embDim,
+                              lat_dim,
+                              vocab_size, emb_dim,
                               PAD,
                               tf_RNN=False):
-    points = np.random.rand(10000, latDim)
+    points = np.random.rand(10000, lat_dim)
 
     for max_senLen in range(1, 6):
         DAriA = AriEL(
-            vocabSize=vocabSize,
-            embDim=embDim,
-            latDim=latDim,
+            vocab_size=vocab_size,
+            emb_dim=emb_dim,
+            lat_dim=lat_dim,
             max_senLen=max_senLen,
             output_type='both',
             language_model=LM,
@@ -93,7 +93,7 @@ def checkSpaceCoverageDecoder(LM,
             PAD=PAD
         )
 
-        input_point = Input(shape=(latDim,), name='question')
+        input_point = Input(shape=(lat_dim,), name='question')
         point = DAriA.decode(input_point)
         decoder_model = Model(inputs=input_point, outputs=point)
 
@@ -132,7 +132,7 @@ def checkSpaceCoverageDecoder(LM,
 
 
 @ex.capture
-def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
+def checkSpaceCoverageEncoder(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
     c0 = choices
 
     c1 = []
@@ -149,7 +149,7 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
     cs = [c2, c3, c4]
     for ci in cs:
         last_c = ci[-1]
-        for i in range(vocabSize):
+        for i in range(vocab_size):
             ci.append(last_c + [i])
 
     for choices in [c0, c1, c2, c3, c4]:
@@ -159,9 +159,9 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
         for sentence in choices:
             max_senLen = len(sentence)
             DAriA = AriEL(
-                vocabSize=vocabSize,
-                embDim=embDim,
-                latDim=latDim,
+                vocab_size=vocab_size,
+                emb_dim=emb_dim,
+                lat_dim=lat_dim,
                 max_senLen=max_senLen,
                 output_type='both',
                 language_model=LM,
@@ -196,22 +196,22 @@ def checkSpaceCoverageEncoder(LM, latDim, vocabSize, PAD, embDim, choices):
 
 
 @ex.capture
-def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
+def checkReconstruction(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
     max_senLen = 100
     batch_size = 20
     encoder_type = 0
     decoder_type = 0
-    # vocabSize = 10
+    # vocab_size = 10
     DAriA = AriEL(
-        vocabSize=vocabSize,
-        embDim=embDim,
-        latDim=latDim,
+        vocab_size=vocab_size,
+        emb_dim=emb_dim,
+        lat_dim=lat_dim,
         max_senLen=max_senLen,
         output_type='both',
         language_model=LM,
         encoder_type=encoder_type,
         decoder_type=decoder_type,
-        size_latDim=1e6,
+        size_lat_dim=1e6,
         PAD=PAD
     )
 
@@ -220,7 +220,7 @@ def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
     discrete_output = DAriA.decode(continuous_output)
     reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
 
-    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
     if not decoder_type == 2:
         prediction = reconstruction_model.predict(sentences)[0].astype(int)
     else:
@@ -245,27 +245,27 @@ def checkReconstruction(LM, latDim, vocabSize, PAD, embDim, choices):
 
 
 @ex.capture
-def threeSentencesGenerator(choices, probabilities, batchSize=3, vocabSize=5, next_timestep=True):
+def threeSentencesGenerator(choices, probabilities, batch_size=3, vocab_size=5, next_timestep=True):
     if next_timestep:
         choices, probabilities = choices2NextStep(choices, probabilities)
 
     choices = np.array(choices)
 
     while True:
-        batch = np.random.choice(len(choices), batchSize, p=probabilities)
+        batch = np.random.choice(len(choices), batch_size, p=probabilities)
         batch = choices[batch]
 
         questions = batch[:, 0]
         padded_q = pad_sequences(questions, padding='pre')
         replies = batch[:, 1]
         padded_r = pad_sequences(replies, padding='pre')
-        categorical_r = to_categorical(padded_r, num_classes=vocabSize)
+        categorical_r = to_categorical(padded_r, num_classes=vocab_size)
         yield padded_q, categorical_r
 
 
 @ex.automain
-def main_test(vocabSize,
-              embDim,
+def main_test(vocab_size,
+              emb_dim,
               LM_path, epochs, steps_per_epoch,
               _log):
     # FIXME: it's cool that it is learning but it doesn't
@@ -274,7 +274,7 @@ def main_test(vocabSize,
     generator = threeSentencesGenerator()
 
     if not os.path.isfile(LM_path):
-        LM = predefined_model(vocabSize, embDim)
+        LM = predefined_model(vocab_size, emb_dim)
         LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['categorical_accuracy'])
         LM.fit_generator(generator, epochs=epochs, steps_per_epoch=steps_per_epoch)
         LM.save(LM_path)

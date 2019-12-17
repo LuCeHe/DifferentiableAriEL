@@ -33,23 +33,23 @@ class AriEL(object):
     """
 
     def __init__(self,
-                 vocabSize=5,
-                 embDim=2,
-                 latDim=3,
+                 vocab_size=5,
+                 emb_dim=2,
+                 lat_dim=3,
                  language_model=None,
                  PAD=None,
                  max_senLen=10,
                  decoder_type=1,
                  encoder_type=1,
-                 size_latDim=10,
+                 size_lat_dim=10,
                  output_type='both'):
 
         self.common_kwargs = dict()
         self.common_kwargs.update(
-            vocabSize=vocabSize,
-            latDim=latDim,
-            embDim=embDim,
-            size_latDim=size_latDim,
+            vocab_size=vocab_size,
+            lat_dim=lat_dim,
+            emb_dim=emb_dim,
+            size_lat_dim=size_lat_dim,
             language_model=language_model,
             PAD=PAD,
             max_senLen=max_senLen)
@@ -57,7 +57,7 @@ class AriEL(object):
 
         # if the input is a rnn, use that, otherwise use an LSTM
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 

@@ -23,23 +23,23 @@ logger = logging.getLogger(__name__)
 
 
 def ArielDecoderLayer1(
-        vocabSize=3,
-        embDim=3,
-        latDim=3,
-        size_latDim=1,
+        vocab_size=3,
+        emb_dim=3,
+        lat_dim=3,
+        size_lat_dim=1,
         max_senLen=3,
         language_model=None,
         output_type=None,
         PAD=None):
-    cell = ArielDecoderCell1(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+    cell = ArielDecoderCell1(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD)
     rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
 
-    input_point = Input(shape=(latDim,), name='point')
+    input_point = Input(shape=(lat_dim,), name='point')
     point = RepeatVector(max_senLen)(input_point)
     o_s = rnn(point)
     model = Model(inputs=input_point, outputs=o_s)
@@ -50,27 +50,27 @@ def ArielDecoderLayer1(
 class ArielDecoderCell1(Layer):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=3,
                  language_model=None,
-                 size_latDim=1.,
+                 size_lat_dim=1.,
                  PAD=None,
                  **kwargs):
 
         super(ArielDecoderCell1, self).__init__(**kwargs)
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD)
 
         # if the input is a rnn, use that, otherwise use an LSTM
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
@@ -79,15 +79,15 @@ class ArielDecoderCell1(Layer):
 
     @property
     def state_size(self):
-        return (self.vocabSize,
+        return (self.vocab_size,
                 self.max_senLen,
-                self.latDim,
+                self.lat_dim,
                 1,
                 1)
 
     @property
     def output_size(self):
-        return self.vocabSize
+        return self.vocab_size
 
     def call(self, inputs, state):
 
@@ -122,8 +122,8 @@ class ArielDecoderCell1(Layer):
         one_softmax = self.language_model(tokens_in)
 
         # NOTE: at each iteration, change the dimension, and add a timestep
-        latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
-        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)
+        lat_dim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
+        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(lat_dim)  # tf.math.greater_equal(curDim, lat_dim)
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
 
@@ -140,28 +140,28 @@ class ArielDecoderCell1(Layer):
 class ArielDecoderLayer0(object):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=10,
                  language_model=None,
                  PAD=None,
-                 size_latDim=1,
+                 size_lat_dim=1,
                  output_type='both'):
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD,
-                             size_latDim=size_latDim,
+                             size_lat_dim=size_lat_dim,
                              output_type=output_type)
 
         # if the input is a rnn, use that, otherwise use an LSTM
 
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the startId you are using ;) ')
 
@@ -175,7 +175,7 @@ class ArielDecoderLayer0(object):
 
         # by clipping the values, it can accept inputs that go beyond the 
         # unit hyper-cube
-        unfolding_point = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': self.size_latDim})(
+        unfolding_point = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': self.size_lat_dim})(
             input_point)  # Clip(0., 1.)(input_point)
 
         expanded_os = ExpandDims(1)(one_softmax)
@@ -201,7 +201,7 @@ class ArielDecoderLayer0(object):
 
             # NOTE: at each iteration, change the dimension
             curDim += 1
-            if curDim >= self.latDim:
+            if curDim >= self.lat_dim:
                 curDim = 0
 
             curDim_t = tf.constant(curDim)
@@ -230,28 +230,28 @@ class ArielDecoderLayer2(object):
     in the paper says """
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=10,
                  language_model=None,
                  PAD=None,
-                 size_latDim=3,
+                 size_lat_dim=3,
                  output_type='both'):
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD,
-                             size_latDim=size_latDim,
+                             size_lat_dim=size_lat_dim,
                              output_type=output_type)
 
         # if the input is a rnn, use that, otherwise use an LSTM
 
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the startId you are using ;) ')
 
@@ -261,11 +261,11 @@ class ArielDecoderLayer2(object):
 
         # by clipping the values, it can accept inputs that go beyond the 
         # unit hyper-cube
-        unfolding_point = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': self.size_latDim})(
+        unfolding_point = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': self.size_lat_dim})(
             input_point)  # Clip(0., 1.)(input_point)
 
-        low_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': 0.})(unfolding_point)
-        upp_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': float(self.size_latDim)})(
+        low_bound = Lambda(dynamic_filler, arguments={'d': self.lat_dim, 'value': 0.})(unfolding_point)
+        upp_bound = Lambda(dynamic_filler, arguments={'d': self.lat_dim, 'value': float(self.size_lat_dim)})(
             unfolding_point)
 
         curDim = 0
@@ -277,7 +277,7 @@ class ArielDecoderLayer2(object):
             # output.extend([low_bound])
 
             Ls, Us = UpdateBoundsDecoder(curDim)([low_bound, upp_bound, softmax])
-            s, low_bound, upp_bound = FindSymbolAndBounds(self.vocabSize, curDim)(
+            s, low_bound, upp_bound = FindSymbolAndBounds(self.vocab_size, curDim)(
                 [Ls, Us, low_bound, upp_bound, input_point])
 
             sentence_layer = ReplaceColumn(j + 1)([sentence_layer, s])
@@ -286,7 +286,7 @@ class ArielDecoderLayer2(object):
             # output.extend([low_bound])
             # NOTE: at each iteration, change the dimension
             curDim += 1
-            if curDim >= self.latDim:
+            if curDim >= self.lat_dim:
                 curDim = 0
 
         sentence_layer = Slice(1, 1, self.max_senLen + 1)(sentence_layer)
@@ -297,22 +297,22 @@ def test():
     np.set_printoptions(precision=2)
 
     LM = None
-    latDim, vocabSize, max_senLen = 2, 3, 4
-    size_latDim = 2.3
+    lat_dim, vocab_size, max_senLen = 2, 3, 4
+    size_lat_dim = 2.3
     PAD = 0
 
-    _, points = random_sequences_and_points(batchSize=10, latDim=latDim)
-    points = size_latDim * points
+    _, points = random_sequences_and_points(batch_size=10, lat_dim=lat_dim)
+    points = size_lat_dim * points
 
-    decoder = DAriEL_Decoder_Layer_2(vocabSize=vocabSize,
-                                     latDim=latDim,
+    decoder = DAriEL_Decoder_Layer_2(vocab_size=vocab_size,
+                                     lat_dim=lat_dim,
                                      max_senLen=max_senLen,
                                      output_type='both',
                                      language_model=LM,
-                                     size_latDim=size_latDim,
+                                     size_lat_dim=size_lat_dim,
                                      PAD=PAD)
 
-    input_point = Input(shape=(latDim,), name='question')
+    input_point = Input(shape=(lat_dim,), name='question')
     point = decoder(input_point)
     decoder_model = Model(inputs=input_point, outputs=point)
 

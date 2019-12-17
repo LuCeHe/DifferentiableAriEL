@@ -61,14 +61,14 @@ from nnets.DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentia
 
 # TODO: move to unittest type of test
 
-vocabSize = 3
+vocab_size = 3
 max_senLen = 6
-batchSize = 3  # 4
-latDim = 4
-embDim = 2
+batch_size = 3  # 4
+lat_dim = 4
+emb_dim = 2
 
                                 
-def biasedSequences(batchSize=3):    
+def biasedSequences(batch_size=3):
     
     options = [[0, 1, 0, 0],
                [0, 2, 0, 0],
@@ -84,30 +84,30 @@ def biasedSequences(batchSize=3):
     frequencies = [1, 1, 6, 6, 11, 6, 1, 1]
     probs = [f / sum(frequencies) for f in frequencies]
     
-    biased_data_indices = np.random.choice(len(options), batchSize, probs).tolist()
+    biased_data_indices = np.random.choice(len(options), batch_size, probs).tolist()
     biased_sequences = options[biased_data_indices]
 
     return biased_sequences
     
                                     
-def random_sequences_and_points(batchSize=3, latDim=4, max_senLen=6, repeated=False, vocabSize=vocabSize):
+def random_sequences_and_points(batch_size=3, lat_dim=4, max_senLen=6, repeated=False, vocab_size=vocab_size):
     
     if not repeated:
         questions = []
-        points = np.random.rand(batchSize, latDim)
-        for _ in range(batchSize):
+        points = np.random.rand(batch_size, lat_dim)
+        for _ in range(batch_size):
             sentence_length = max_senLen  # np.random.choice(max_senLen)
-            randomQ = np.random.choice(vocabSize, sentence_length)  # + 1
-            # EOS = (vocabSize+1)*np.ones(1)
+            randomQ = np.random.choice(vocab_size, sentence_length)  # + 1
+            # EOS = (vocab_size+1)*np.ones(1)
             # randomQ = np.concatenate((randomQ, EOS))
             questions.append(randomQ)
     else:
-        point = np.random.rand(1, latDim)
+        point = np.random.rand(1, lat_dim)
         sentence_length = max_senLen  # np.random.choice(max_senLen)
-        question = np.random.choice(vocabSize, sentence_length)  # + 1
+        question = np.random.choice(vocab_size, sentence_length)  # + 1
         question = np.expand_dims(question, axis=0)
-        points = np.repeat(point, repeats=[batchSize], axis=0)
-        questions = np.repeat(question, repeats=[batchSize], axis=0)
+        points = np.repeat(point, repeats=[batch_size], axis=0)
+        questions = np.repeat(question, repeats=[batch_size], axis=0)
         
     padded_questions = pad_sequences(questions)
 
@@ -128,16 +128,16 @@ def test_DAriEL_Encoder_model():
     
     questions, points = random_sequences_and_points()
     
-    # vocabSize + 1 for the keras padding + 1 for EOS
-    model = DAriEL_Encoder_model(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    # vocab_size + 1 for the keras padding + 1 for EOS
+    model = DAriEL_Encoder_model(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  startId=0)
     # print(partialModel.predict(question)[0])
     for layer in model.predict(questions):
         print(layer)
-        # assert layer.shape[0] == latDim
+        # assert layer.shape[0] == lat_dim
         print('')
         # print('')
 
@@ -176,10 +176,10 @@ def test_DAriEL_Decoder_model():
 
     questions, points = random_sequences_and_points()
     
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = DAriEL_Decoder_model(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    # it used to be vocab_size + 1 for the keras padding + 1 for EOS
+    model = DAriEL_Decoder_model(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  startId=0,
                                  output_type='tokens')
@@ -220,9 +220,9 @@ def test_DAriEL_AE_dcd_model():
           
           """)        
 
-    DAriA_dcd = Differentiable_AriEL(vocabSize=vocabSize,
-                                     embDim=embDim,
-                                     latDim=latDim,
+    DAriA_dcd = Differentiable_AriEL(vocab_size=vocab_size,
+                                     emb_dim=emb_dim,
+                                     lat_dim=lat_dim,
                                      max_senLen=max_senLen,
                                      startId=0,
                                      output_type='tokens')
@@ -232,7 +232,7 @@ def test_DAriEL_AE_dcd_model():
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_question, outputs=discrete_output)  # + [continuous_latent_space])    
     model.summary()
     
@@ -274,18 +274,18 @@ def test_DAriEL_AE_cdc_model():
           
           """)        
 
-    DAriA_cdc = Differentiable_AriEL(vocabSize=vocabSize,
-                                     embDim=embDim,
-                                     latDim=latDim,
+    DAriA_cdc = Differentiable_AriEL(vocab_size=vocab_size,
+                                     emb_dim=emb_dim,
+                                     lat_dim=lat_dim,
                                      max_senLen=max_senLen,
                                      startId=0,
                                      output_type='tokens')
 
-    input_point = Input(shape=(latDim,), name='discrete_sequence')
+    input_point = Input(shape=(lat_dim,), name='discrete_sequence')
     discrete_output = DAriA_cdc.decode(input_point)
     # in between some neural operations can be defined
     continuous_output = DAriA_cdc.encode(discrete_output)
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_point, outputs=continuous_output)  # + [continuous_latent_space])    
     # model.summary()
     
@@ -328,9 +328,9 @@ def test_stuff_inside_AE():
           
           """)        
 
-    DAriA_dcd = Differential_AriEL(vocabSize=vocabSize,
-                                   embDim=embDim,
-                                   latDim=latDim,
+    DAriA_dcd = Differential_AriEL(vocab_size=vocab_size,
+                                   emb_dim=emb_dim,
+                                   lat_dim=lat_dim,
                                    max_senLen=max_senLen,
                                    output_type='tokens')
 
@@ -338,7 +338,7 @@ def test_stuff_inside_AE():
     continuous_latent_space = DAriA_dcd.encode(input_question)
 
     # Dense WORKS!! (it fits) but loss = 0 even for random initial weights! ERROR!!!!
-    # continuous_latent_space = Dense(latDim)(continuous_latent_space)                      
+    # continuous_latent_space = Dense(lat_dim)(continuous_latent_space)
     
     # GaussianNoise(stddev=.02) WORKS!! (it fits) and loss \= 0!! but stddev>=.15 
     # not always :( find reason or if it keeps happening if you restart the kernel
@@ -350,7 +350,7 @@ def test_stuff_inside_AE():
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_question, outputs=discrete_output)  # + [continuous_latent_space])    
     model.summary()
     
@@ -379,18 +379,18 @@ def test_stuff_inside_AE():
     model.fit(questions, questions, epochs=2)    
 
 
-def test_noise_vs_vocabSize(vocabSize=4, std=.2):
+def test_noise_vs_vocab_size(vocab_size=4, std=.2):
     
-    questions, _ = random_sequences_and_points(False, vocabSize)
+    questions, _ = random_sequences_and_points(False, vocab_size)
     
     print("""
           Test Auto-Encoder DCD
           
           """)        
 
-    DAriA_dcd = Differential_AriEL(vocabSize=vocabSize,
-                                   embDim=embDim,
-                                   latDim=latDim,
+    DAriA_dcd = Differential_AriEL(vocab_size=vocab_size,
+                                   emb_dim=emb_dim,
+                                   lat_dim=lat_dim,
                                    max_senLen=max_senLen,
                                    output_type='tokens')
 
@@ -404,7 +404,7 @@ def test_noise_vs_vocabSize(vocabSize=4, std=.2):
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(continuous_latent_space)
     
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_question, outputs=discrete_output)  # + [continuous_latent_space])    
     model.summary()
     
@@ -426,16 +426,16 @@ def test_Decoder_forTooMuchNoise():
           """)
 
     # questions, points = random_sequences_and_points()
-    points = 20 * np.random.rand(batchSize, latDim)
+    points = 20 * np.random.rand(batch_size, lat_dim)
     
     print('points')
     print(points)
     print('')
     
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = vAriEL_Decoder_model(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    # it used to be vocab_size + 1 for the keras padding + 1 for EOS
+    model = vAriEL_Decoder_model(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  output_type='tokens')
     
@@ -481,32 +481,32 @@ def test_DAriA_Decoder_cross_entropy():
 
     questions, points = random_sequences_and_points()
     
-    categorical_questions = to_categorical(questions, num_classes=vocabSize)
+    categorical_questions = to_categorical(questions, num_classes=vocab_size)
     print('')
     # print(categorical_questions)
     print('')
     print(categorical_questions.shape)
     
     # 1. it works
-    # model = vAriEL_Decoder_model(vocabSize = vocabSize, 
-    #                             embDim = embDim, 
-    #                             latDim = latDim, 
+    # model = vAriEL_Decoder_model(vocab_size = vocab_size,
+    #                             emb_dim = emb_dim,
+    #                             lat_dim = lat_dim,
     #                             max_senLen = max_senLen, 
     #                             output_type='softmaxes')
 
     # 2. does this work?    
-    DAriA_dcd = Differentiable_AriEL(vocabSize=vocabSize,
-                                     embDim=embDim,
-                                     latDim=latDim,
+    DAriA_dcd = Differentiable_AriEL(vocab_size=vocab_size,
+                                     emb_dim=emb_dim,
+                                     lat_dim=lat_dim,
                                      max_senLen=max_senLen,
                                      startId=0,
                                      output_type='softmaxes')
 
-    input_point = Input(shape=(latDim,), name='input_point')
+    input_point = Input(shape=(lat_dim,), name='input_point')
     # in between some neural operations can be defined
     discrete_output = DAriA_dcd.decode(input_point)
     
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_point, outputs=discrete_output)  # + [continuous_latent_space])    
     
     # model.summary()
@@ -544,7 +544,7 @@ def test_vAriEL_dcd_CCE():
     
     questions, _ = random_sequences_and_points()
     
-    categorical_questions = to_categorical(questions, num_classes=vocabSize)
+    categorical_questions = to_categorical(questions, num_classes=vocab_size)
     print('')
     print('categorical questions')
     print('')
@@ -555,9 +555,9 @@ def test_vAriEL_dcd_CCE():
           
           """)        
 
-    DAriA_dcd = Differential_AriEL(vocabSize=vocabSize,
-                                   embDim=embDim,
-                                   latDim=latDim,
+    DAriA_dcd = Differential_AriEL(vocab_size=vocab_size,
+                                   emb_dim=emb_dim,
+                                   lat_dim=lat_dim,
                                    max_senLen=max_senLen,
                                    output_type='softmaxes')
 
@@ -619,10 +619,10 @@ def test_vAriEL_onMNIST():
           
           """)        
     
-    latDim = np.prod(input_shape)
-    DAriA_cdc = Differential_AriEL(vocabSize=vocabSize,
-                                   embDim=embDim,
-                                   latDim=latDim,
+    lat_dim = np.prod(input_shape)
+    DAriA_cdc = Differential_AriEL(vocab_size=vocab_size,
+                                   emb_dim=emb_dim,
+                                   lat_dim=lat_dim,
                                    max_senLen=max_senLen,
                                    output_type='tokens')
 
@@ -633,7 +633,7 @@ def test_vAriEL_onMNIST():
     continuous_output = DAriA_cdc.encode(discrete_output)
     
     output_image = Reshape(input_shape)(continuous_output)
-    # vocabSize + 1 for the keras padding + 1 for EOS
+    # vocab_size + 1 for the keras padding + 1 for EOS
     model = Model(inputs=input_image, outputs=output_image)  # + [continuous_latent_space])    
     # model.summary()
 
@@ -657,12 +657,12 @@ def test_DAriEL_model_from_outside():
 
     questions, points = random_sequences_and_points()
     
-    LM = predefined_model(vocabSize, embDim)
+    LM = predefined_model(vocab_size, emb_dim)
 
-    # it used to be vocabSize + 1 for the keras padding + 1 for EOS
-    model = DAriEL_Decoder_model(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    # it used to be vocab_size + 1 for the keras padding + 1 for EOS
+    model = DAriEL_Decoder_model(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  startId=0,
                                  language_model=LM,
@@ -681,26 +681,26 @@ def test_DAriEL_model_from_outside_v2():
           """)
 
     questions, points = random_sequences_and_points()
-    answers = to_categorical(questions[:, 1], vocabSize)
+    answers = to_categorical(questions[:, 1], vocab_size)
     
-    LM = predefined_model(vocabSize, embDim)    
+    LM = predefined_model(vocab_size, emb_dim)
     LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
     
     LM.fit(questions, answers, epochs=100)    
 
-    DAriEL = Differentiable_AriEL(vocabSize=vocabSize,
-                                  embDim=embDim,
-                                  latDim=latDim,
+    DAriEL = Differentiable_AriEL(vocab_size=vocab_size,
+                                  emb_dim=emb_dim,
+                                  lat_dim=lat_dim,
                                   max_senLen=max_senLen,
                                   output_type='both',
                                   language_model=LM,
                                   startId=0)
 
-    decoder_input = Input(shape=(latDim,), name='decoder_input')
+    decoder_input = Input(shape=(lat_dim,), name='decoder_input')
     discrete_output = DAriEL.decode(decoder_input)
     decoder_model = Model(inputs=decoder_input, outputs=discrete_output)
     
-    noise = np.random.rand(batchSize, latDim)
+    noise = np.random.rand(batch_size, lat_dim)
     indicess, _ = decoder_model.predict(noise)
 
     print(indicess)
@@ -709,12 +709,12 @@ def test_DAriEL_model_from_outside_v2():
 def mini_test():
     
     batch_size = 2
-    latDim, curDim, vocabSize = 4, 2, 7
-    print('Parameters:\nlatDim = {}\ncurDim = {}\nvocabSize = {}\nbatch_size = {}\n\n'.format(latDim, curDim, vocabSize, batch_size))
+    lat_dim, curDim, vocab_size = 4, 2, 7
+    print('Parameters:\nlat_dim = {}\ncurDim = {}\nvocab_size = {}\nbatch_size = {}\n\n'.format(lat_dim, curDim, vocab_size, batch_size))
     
-    unfolding_point = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, latDim))
-    softmax_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, vocabSize))
-    t_latDim = tf.shape(unfolding_point)[-1]
+    unfolding_point = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, lat_dim))
+    softmax_placeholder = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, vocab_size))
+    t_lat_dim = tf.shape(unfolding_point)[-1]
     
     expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
     t_curDim = tf.constant(curDim) + 1
@@ -722,24 +722,24 @@ def mini_test():
     x = expanded_unfolding_point[:, :, curDim]
     t_x = expanded_unfolding_point[:, :, t_curDim]  # works!
 
-    one_hots = dynamic_one_hot(softmax_placeholder, latDim, curDim)
-    t_one_hots = dynamic_one_hot(softmax_placeholder, t_latDim, t_curDim)
+    one_hots = dynamic_one_hot(softmax_placeholder, lat_dim, curDim)
+    t_one_hots = dynamic_one_hot(softmax_placeholder, t_lat_dim, t_curDim)
 
     # run
     sess = tf.compat.v1.Session()
     
-    random_4softmax = np.random.rand(batch_size, vocabSize)
+    random_4softmax = np.random.rand(batch_size, vocab_size)
     
     lines = []
     for line in random_4softmax:
-        index = np.random.choice(vocabSize)
+        index = np.random.choice(vocab_size)
         line[index] = 100
         lines.append(line)
     
     random_4softmax = np.array(lines)
     sum_r = random_4softmax.sum(axis=1, keepdims=True)
     initial_softmax = random_4softmax / sum_r
-    initial_point = np.random.rand(batch_size, latDim)
+    initial_point = np.random.rand(batch_size, lat_dim)
     feed_data = {softmax_placeholder: initial_softmax, unfolding_point: initial_point}
     results = sess.run([expanded_unfolding_point, x, t_x], feed_data)
     
@@ -756,8 +756,8 @@ def test_DAriA_Decoder_wasserstein():
     pass
 
 
-def checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen):
-    _, points = random_sequences_and_points(batchSize=10000, latDim=latDim, max_senLen=max_senLen)
+def checkSpaceCoverageDecoder(decoder_model, lat_dim, max_senLen):
+    _, points = random_sequences_and_points(batch_size=10000, lat_dim=lat_dim, max_senLen=max_senLen)
     prediction = decoder_model.predict(points)
     prediction = np.argmax(prediction, axis=1)
     
@@ -774,7 +774,7 @@ def checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen):
     plt.show()
 
 
-def checkSpaceCoverageEncoder(encoder_model, latDim, max_senLen):
+def checkSpaceCoverageEncoder(encoder_model, lat_dim, max_senLen):
     
     choices = [[1, 2, 2],
                [2],
@@ -807,31 +807,31 @@ def test_2d_visualization_trainInside():
     # seem to be learning enough
     
     max_senLen = 4
-    vocabSize = 4
-    embDim = int(np.sqrt(vocabSize) + 1)
-    latDim = 2
+    vocab_size = 4
+    emb_dim = int(np.sqrt(vocab_size) + 1)
+    lat_dim = 2
     epochs = 100
     
-    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    DAriA = Differentiable_AriEL(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  output_type='both',
                                  startId=0)
     
-    input_questions = Input(shape=(latDim,), name='question')    
+    input_questions = Input(shape=(lat_dim,), name='question')
     point = DAriA.decode(input_questions)
     decoder_model = Model(inputs=input_questions, outputs=point[0])
 
-    checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen)
+    checkSpaceCoverageDecoder(decoder_model, lat_dim, max_senLen)
     
     # bias the representation
     
-    bs = biasedSequences(batchSize=1000)
-    categorical_bs = to_categorical(bs, num_classes=vocabSize)
+    bs = biasedSequences(batch_size=1000)
+    categorical_bs = to_categorical(bs, num_classes=vocab_size)
 
-    bs_val = biasedSequences(batchSize=100)
-    categorical_bs_val = to_categorical(bs_val, num_classes=vocabSize)    
+    bs_val = biasedSequences(batch_size=100)
+    categorical_bs_val = to_categorical(bs_val, num_classes=vocab_size)
     
     print("""
           Test Auto-Encoder DCD
@@ -856,7 +856,7 @@ def test_2d_visualization_trainInside():
     ae_model.compile(loss='mse', optimizer='sgd', run_eagerly=False)
     ae_model.fit(bs, categorical_bs, epochs=epochs, callbacks=callbacks, validation_data=[bs_val, categorical_bs_val], validation_freq=1)    
 
-    checkSpaceCoverageDecoder(decoder_model, latDim, max_senLen)
+    checkSpaceCoverageDecoder(decoder_model, lat_dim, max_senLen)
     
     predictions = ae_model.predict(bs)
     pred = np.argmax(predictions, axis=1)
@@ -872,33 +872,33 @@ def test_2d_visualization_trainInside():
 def test():
     
     max_senLen = 10  # 20 #
-    vocabSize = 100  # 1500 #
-    embDim = int(np.sqrt(vocabSize) + 1)
-    latDim = 5
+    vocab_size = 100  # 1500 #
+    emb_dim = int(np.sqrt(vocab_size) + 1)
+    lat_dim = 5
     epochs = 10
     
-    questions, _ = random_sequences_and_points(batchSize=10, latDim=latDim, max_senLen=max_senLen, vocabSize=vocabSize)
-    answers = to_categorical(questions[:, 1], vocabSize)
+    questions, _ = random_sequences_and_points(batch_size=10, lat_dim=lat_dim, max_senLen=max_senLen, vocab_size=vocab_size)
+    answers = to_categorical(questions[:, 1], vocab_size)
     logger.info(answers)
     
-    LM = predefined_model(vocabSize, embDim)
+    LM = predefined_model(vocab_size, emb_dim)
     LM.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=['acc'])
     LM.fit(questions, answers, epochs=epochs)    
     
-    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    DAriA = Differentiable_AriEL(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen,
                                  output_type='both',
                                  language_model=LM,
                                  PAD=0)
     
-    input_questions = Input(shape=(latDim,), name='question')    
+    input_questions = Input(shape=(lat_dim,), name='question')
     dense = Dense(4)(input_questions)
     point = DAriA.decode(dense)
     decoder_model = Model(inputs=input_questions, outputs=point[1])
 
-    _, points = random_sequences_and_points(batchSize=100, latDim=latDim, max_senLen=max_senLen)
+    _, points = random_sequences_and_points(batch_size=100, lat_dim=lat_dim, max_senLen=max_senLen)
     pred = decoder_model.predict(points, verbose=1)
     
     logger.info(pred)
@@ -907,26 +907,26 @@ def test():
 
 
 def test_2_old():
-    vocabSize = 5  # 1500 #
-    embDim = 2
-    latDim = 4
+    vocab_size = 5  # 1500 #
+    emb_dim = 2
+    lat_dim = 4
     max_length = 10
     epochs = 10
-    batchSize = 3
+    batch_size = 3
     
-    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    DAriA = Differentiable_AriEL(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_length,
                                  output_type='both',
                                  language_model=None,
                                  PAD=0)
     
-    input_questions = Input(shape=(latDim,), name='question')    
+    input_questions = Input(shape=(lat_dim,), name='question')
     point = DAriA.decode(input_questions)
     decoder_model = Model(inputs=input_questions, outputs=point[0])
     
-    _, points = random_sequences_and_points(batchSize=batchSize, latDim=latDim, max_senLen=max_length)
+    _, points = random_sequences_and_points(batch_size=batch_size, lat_dim=lat_dim, max_senLen=max_length)
     pred_output = decoder_model.predict(points, verbose=1)
     
     logger.info(pred_output)
@@ -934,28 +934,28 @@ def test_2_old():
     
 def test_2_tf():
     
-    vocabSize = 6  # 1500 #
-    embDim = 4
-    latDim = 2
+    vocab_size = 6  # 1500 #
+    emb_dim = 4
+    lat_dim = 2
     max_length = 7
-    batchSize = 3
+    batch_size = 3
     PAD = 0
     
-    DAriA = Differentiable_AriEL(vocabSize=vocabSize,
-                                 embDim=embDim,
-                                 latDim=latDim,
+    DAriA = Differentiable_AriEL(vocab_size=vocab_size,
+                                 emb_dim=emb_dim,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_length,
                                  output_type='both',
                                  language_model=None,
                                  tf_RNN=True,
                                  PAD=PAD)
     
-    input_questions = Input(shape=(latDim,), name='question')    
+    input_questions = Input(shape=(lat_dim,), name='question')
     point = DAriA.decode(input_questions)
     decoder_model = Model(inputs=input_questions, outputs=point)
     
-    _, points = random_sequences_and_points(batchSize=batchSize, latDim=latDim, max_senLen=max_length)
-    pred_output = decoder_model.predict(points, batch_size=batchSize, verbose=1)
+    _, points = random_sequences_and_points(batch_size=batch_size, lat_dim=lat_dim, max_senLen=max_length)
+    pred_output = decoder_model.predict(points, batch_size=batch_size, verbose=1)
     
     logger.warn(np.argmax(pred_output, axis=2))
     
@@ -966,26 +966,26 @@ def test_2_tf():
 
 def finetuning():
 
-    vocabSize = 6  # 1500 #
-    embDim = 5
-    latDim = 2
+    vocab_size = 6  # 1500 #
+    emb_dim = 5
+    lat_dim = 2
     max_length = 4
     batch_size = 3
     PAD = 0
 
-    language_model = predefined_model(vocabSize, embDim)  
+    language_model = predefined_model(vocab_size, emb_dim)
 
     sess = tf.compat.v1.Session()
     sess.run(tf.global_variables_initializer())
 
-    _, inputs = random_sequences_and_points(batchSize=batch_size, latDim=latDim, max_senLen=max_length)
+    _, inputs = random_sequences_and_points(batch_size=batch_size, lat_dim=lat_dim, max_senLen=max_length)
     
-    inputs_placeholder = tf.placeholder(tf.float32, shape=(None, latDim))
+    inputs_placeholder = tf.placeholder(tf.float32, shape=(None, lat_dim))
 
     curDim = tf.zeros(1)
     timeStep = tf.zeros(1)
     b = tf.shape(inputs_placeholder)[0]
-    one_softmax, unfolding_point = tf.zeros([b, vocabSize]), tf.zeros([b, latDim])
+    one_softmax, unfolding_point = tf.zeros([b, vocab_size]), tf.zeros([b, lat_dim])
     tokens = tf.zeros([b, max_length])
 
     b = tf.shape(one_softmax)[0]
@@ -1028,8 +1028,8 @@ def finetuning():
         one_softmax = language_model(tokens_in)        
         
         # NOTE: at each iteration, change the dimension, and add a timestep
-        latDim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
-        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)
+        lat_dim = tf.cast(tf.shape(unfolding_point)[-1], dtype=tf.float32)
+        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(lat_dim)  # tf.math.greater_equal(curDim, lat_dim)
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
         

@@ -20,14 +20,14 @@ logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def DAriEL_Encoder_model(vocabSize=101,
-                         embDim=2,
-                         latDim=4,
+def DAriEL_Encoder_model(vocab_size=101,
+                         emb_dim=2,
+                         lat_dim=4,
                          language_model=None,
                          max_senLen=6,
                          PAD=None):
-    layer = DAriEL_Encoder_Layer_0(vocabSize=vocabSize, embDim=embDim,
-                                   latDim=latDim, language_model=language_model,
+    layer = DAriEL_Encoder_Layer_0(vocab_size=vocab_size, emb_dim=emb_dim,
+                                   lat_dim=lat_dim, language_model=language_model,
                                    max_senLen=max_senLen, PAD=PAD)
     input_questions = Input(shape=(None,), name='question')
     point = layer(input_questions)
@@ -39,25 +39,25 @@ def DAriEL_Encoder_model(vocabSize=101,
 class ArielEncoderLayer0(object):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  language_model=None,
-                 size_latDim=0,
+                 size_lat_dim=0,
                  max_senLen=6,
                  PAD=None,
                  softmaxes=False):
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              language_model=language_model,
                              max_senLen=max_senLen,
                              PAD=PAD,
                              softmaxes=softmaxes)
 
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: logger.warn('Since the PAD was not specified we assigned a value of zero!'); self.PAD = 0
 
@@ -79,7 +79,7 @@ class ArielEncoderLayer0(object):
 
         final_softmaxes = Lambda(slice_)(final_softmaxes)
 
-        point = probsToPoint(self.vocabSize, self.latDim)([final_softmaxes, input_questions])
+        point = probsToPoint(self.vocab_size, self.lat_dim)([final_softmaxes, input_questions])
 
         if not self.softmaxes:
             return point
@@ -89,9 +89,9 @@ class ArielEncoderLayer0(object):
 
 class probsToPoint(object):
 
-    def __init__(self, vocabSize=2, latDim=3):
+    def __init__(self, vocab_size=2, lat_dim=3):
         # super(vAriEL_Encoder, self).__init__()
-        self.__dict__.update(vocabSize=vocabSize, latDim=latDim)
+        self.__dict__.update(vocab_size=vocab_size, lat_dim=lat_dim)
 
     def __call__(self, inputs):
         softmax, input_questions = inputs
@@ -109,16 +109,16 @@ class probsToPoint(object):
             # for p_ij, c_ij, token_i in zip(listProbs, cumsums, listTokens):
 
             listTokens = tf.cast(listTokens, dtype=tf.int32)
-            one_hot = K.one_hot(listTokens, self.vocabSize)
+            one_hot = K.one_hot(listTokens, self.vocab_size)
 
             p_iti = K.sum(listProbs * one_hot, axis=2)
             c_iti = K.sum(cumsums * one_hot, axis=2)
 
             # Create another vector containing zeroes to pad `a` to (2 * 3) elements.
             zero_padding = Lambda(dynamic_zeros,
-                                  arguments={'d': self.latDim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
+                                  arguments={'d': self.lat_dim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(p_iti)
             zero_padding = K.squeeze(zero_padding, axis=1)
-            ones_padding = Lambda(dynamic_ones, arguments={'d': self.latDim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(
+            ones_padding = Lambda(dynamic_ones, arguments={'d': self.lat_dim * tf.shape(p_iti)[1] - tf.shape(p_iti)[1]})(
                 p_iti)
             ones_padding = K.squeeze(ones_padding, axis=1)
 
@@ -127,8 +127,8 @@ class probsToPoint(object):
             c_padded = tf.concat([c_iti, zero_padding], 1)
 
             # Reshape the padded vector to the desired shape.
-            p_latent = tf.reshape(p_padded, [-1, tf.shape(p_iti)[1], self.latDim])
-            c_latent = tf.reshape(c_padded, [-1, tf.shape(c_iti)[1], self.latDim])
+            p_latent = tf.reshape(p_padded, [-1, tf.shape(p_iti)[1], self.lat_dim])
+            c_latent = tf.reshape(c_padded, [-1, tf.shape(c_iti)[1], self.lat_dim])
 
             # calculate the final position determined by AriEL
             p_cumprod = tf.math.cumprod(p_latent, axis=1, exclusive=True)
@@ -150,28 +150,28 @@ class ArielEncoderLayer1(object):
     in the paper says """
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=10,
                  language_model=None,
                  PAD=None,
-                 size_latDim=3,
+                 size_lat_dim=3,
                  output_type='both'):
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
                              PAD=PAD,
-                             size_latDim=size_latDim,
+                             size_lat_dim=size_lat_dim,
                              output_type=output_type)
 
         # if the input is a rnn, use that, otherwise use an LSTM
 
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
@@ -181,8 +181,8 @@ class ArielEncoderLayer1(object):
         sentence_layer = Concatenate(axis=1)([PAD_layer, input_question])
         sentence_layer = Lambda(tf.cast, arguments={'dtype': tf.int32, })(sentence_layer)
 
-        low_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': 0.})(input_question)
-        upp_bound = Lambda(dynamic_filler, arguments={'d': self.latDim, 'value': float(self.size_latDim)})(
+        low_bound = Lambda(dynamic_filler, arguments={'d': self.lat_dim, 'value': 0.})(input_question)
+        upp_bound = Lambda(dynamic_filler, arguments={'d': self.lat_dim, 'value': float(self.size_lat_dim)})(
             input_question)
 
         curDim = 0
@@ -190,12 +190,12 @@ class ArielEncoderLayer1(object):
             s_0toj = Slice(1, 0, j + 1)(sentence_layer)
             s_j = Slice(1, j + 1, j + 2)(sentence_layer)
             softmax = self.language_model(s_0toj)
-            low_bound, upp_bound = UpdateBoundsEncoder(self.latDim, self.vocabSize, curDim)(
+            low_bound, upp_bound = UpdateBoundsEncoder(self.lat_dim, self.vocab_size, curDim)(
                 [low_bound, upp_bound, softmax, s_j])
 
             # NOTE: at each iteration, change the dimension
             curDim += 1
-            if curDim >= self.latDim:
+            if curDim >= self.lat_dim:
                 curDim = 0
 
         z = tf.add(low_bound, upp_bound) / 2
@@ -204,18 +204,18 @@ class ArielEncoderLayer1(object):
 
 
 def ArielEncoderLayer2(
-        vocabSize=3,
-        embDim=3,
-        latDim=3,
+        vocab_size=3,
+        emb_dim=3,
+        lat_dim=3,
         max_senLen=3,
-        size_latDim=1.,
+        size_lat_dim=1.,
         language_model=None,
         PAD=None):
-    cell = ArielEncoderCell2(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+    cell = ArielEncoderCell2(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
-                             size_latDim=size_latDim,
+                             size_lat_dim=size_lat_dim,
                              language_model=language_model,
                              PAD=PAD)
     rnn = RNN([cell], return_sequences=False, return_state=False, name='AriEL_encoder')
@@ -231,27 +231,27 @@ def ArielEncoderLayer2(
 class ArielEncoderCell2(Layer):
 
     def __init__(self,
-                 vocabSize=101,
-                 embDim=2,
-                 latDim=4,
+                 vocab_size=101,
+                 emb_dim=2,
+                 lat_dim=4,
                  max_senLen=3,
                  language_model=None,
-                 size_latDim=3,
+                 size_lat_dim=3,
                  PAD=None,
                  **kwargs):
         super(ArielEncoderCell2, self).__init__(**kwargs)
 
-        self.__dict__.update(vocabSize=vocabSize,
-                             embDim=embDim,
-                             latDim=latDim,
+        self.__dict__.update(vocab_size=vocab_size,
+                             emb_dim=emb_dim,
+                             lat_dim=lat_dim,
                              max_senLen=max_senLen,
                              language_model=language_model,
-                             size_latDim=size_latDim,
+                             size_lat_dim=size_lat_dim,
                              PAD=PAD)
 
         # if the input is a rnn, use that, otherwise use an LSTM
         if self.language_model == None:
-            self.language_model = predefined_model(vocabSize, embDim)
+            self.language_model = predefined_model(vocab_size, emb_dim)
 
         if self.PAD == None: raise ValueError('Define the PAD you are using ;) ')
 
@@ -260,16 +260,16 @@ class ArielEncoderCell2(Layer):
 
     @property
     def state_size(self):
-        return (self.latDim,
-                self.latDim,
+        return (self.lat_dim,
+                self.lat_dim,
                 self.max_senLen + 1,
-                self.latDim,
+                self.lat_dim,
                 1,
                 1)
 
     @property
     def output_size(self):
-        return self.latDim
+        return self.lat_dim
 
     def call(self, inputs, state):
 
@@ -284,8 +284,8 @@ class ArielEncoderCell2(Layer):
 
         tokens = replace_column(tokens, input_token, timeStep_plus1)
 
-        initial_low_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=0.)
-        initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.latDim, value=float(self.size_latDim))
+        initial_low_bound = dynamic_filler(batch_as=input_token, d=self.lat_dim, value=0.)
+        initial_upp_bound = dynamic_filler(batch_as=input_token, d=self.lat_dim, value=float(self.size_lat_dim))
 
         pred_t = tf.reduce_mean(timeStep) > 0  # tf.math.greater_equal(zero, timeStep)
         low_bound = tf.cond(pred_t, lambda: low_bound, lambda: initial_low_bound, name='low_bound_cond')
@@ -304,8 +304,8 @@ class ArielEncoderCell2(Layer):
         z = tf.reduce_mean(bounds, axis=2)
 
         # NOTE: at each iteration, change the dimension, and add a timestep
-        latDim = tf.cast(tf.shape(z)[-1], dtype=tf.float32)
-        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(latDim)  # tf.math.greater_equal(curDim, latDim)
+        lat_dim = tf.cast(tf.shape(z)[-1], dtype=tf.float32)
+        pred_l = tf.reduce_mean(curDim) + 1 >= tf.reduce_mean(lat_dim)  # tf.math.greater_equal(curDim, lat_dim)
         curDim = tf.cond(pred_l, lambda: tf.zeros_like(curDim), lambda: tf.add(curDim, 1), name='curDim')
         timeStep = tf.add(timeStep, 1)
 
@@ -320,17 +320,17 @@ class ArielEncoderCell2(Layer):
 
 
 def test():
-    vocabSize, batch_size, max_senLen = 3, 6, 5
-    latDim = 2
+    vocab_size, batch_size, max_senLen = 3, 6, 5
+    lat_dim = 2
 
     input_questions = Input((None,))
     encoded = ArielEncoderLayer1(PAD=0,
-                                 vocabSize=vocabSize,
-                                 latDim=latDim,
+                                 vocab_size=vocab_size,
+                                 lat_dim=lat_dim,
                                  max_senLen=max_senLen, )(input_questions)
     model = Model(input_questions, encoded)
 
-    sentences = np.random.randint(vocabSize, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
 
     prediction = model.predict(sentences)
 

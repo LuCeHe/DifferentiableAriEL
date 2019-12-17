@@ -25,14 +25,14 @@ def sort_gzip_by_length(gzipDatasetFilepath):
 
 def train_language_model(
         generator,
-        vocabSize,
-        embDim,
+        vocab_size,
+        emb_dim,
         epochs,
         steps_per_epoch,
         LM_path,
         log_path):
 
-    LM = predefined_model(vocabSize, embDim)
+    LM = predefined_model(vocab_size, emb_dim)
     LM.compile(
         loss='categorical_crossentropy',
         optimizer='SGD',
@@ -62,14 +62,14 @@ def train_language_model_curriculum_learning(
         gzip_filepath,
         grammar_filepath,
         batch_size,
-        vocabSize,
-        embDim,
+        vocab_size,
+        emb_dim,
         epochs,
         steps_per_epoch,
         LM_path,
         log_path):
 
-    LM = predefined_model(vocabSize, embDim)
+    LM = predefined_model(vocab_size, emb_dim)
     LM.summary()
     LM.compile(
         loss='categorical_crossentropy',

@@ -95,8 +95,8 @@ def argmaxPseudoGrad(cumsum, cumsum_exclusive, value_of_interest, grad):
     ce_minus_c = tf.subtract(cumsum_exclusive, value_of_interest)
     signed_xor = c_minus_v * ce_minus_c
     symbol = tf.argmin(signed_xor, axis=1)
-    vocabSize = tf.shape(cumsum)[-1]
-    oh_symbol = tf.one_hot(symbol, vocabSize)
+    vocab_size = tf.shape(cumsum)[-1]
+    oh_symbol = tf.one_hot(symbol, vocab_size)
 
     # dz_dc_scaled = tf.maximum(1 - signed_xor, 0)   # val_loss: 0.1689
     # dz_dc_scaled = - 10*signed_xor   # worse than when noArgmax
@@ -127,8 +127,8 @@ def pzToSymbol_withArgmax(scaled_cumsum, scaled_cumsum_exclusive, value_of_inter
 
 @function.Defun()
 def onehotPseudoGrad(token, cumsum, grad):
-    vocabSize = tf.shape(cumsum)[-1]
-    oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocabSize)
+    vocab_size = tf.shape(cumsum)[-1]
+    oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocab_size)
     oh_grad = grad * oh_symbol
     return [oh_grad,
             tf.zeros_like(cumsum)]
@@ -136,8 +136,8 @@ def onehotPseudoGrad(token, cumsum, grad):
 
 @function.Defun(grad_func=onehotPseudoGrad)
 def onehot_pseudoD(token, cumsum):
-    vocabSize = tf.shape(cumsum)[-1]
-    oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocabSize)
+    vocab_size = tf.shape(cumsum)[-1]
+    oh_symbol = tf.one_hot(tf.squeeze(tf.cast(token, dtype=tf.int64), axis=1), vocab_size)
     return oh_symbol
 
 
@@ -161,8 +161,8 @@ def pzToSymbolAndZ(inputs):
     unfolding_point = K.clip(unfolding_point, 0. + eps, 1. - eps)
 
     expanded_unfolding_point = K.expand_dims(unfolding_point, axis=1)
-    vocabSize = tf.shape(one_softmax)[-1]
-    latDim = tf.shape(unfolding_point)[-1]
+    vocab_size = tf.shape(one_softmax)[-1]
+    lat_dim = tf.shape(unfolding_point)[-1]
 
     cumsum = K.cumsum(one_softmax, axis=2)
     cumsum = K.squeeze(cumsum, axis=1)
@@ -170,7 +170,7 @@ def pzToSymbolAndZ(inputs):
     cumsum_exclusive = K.squeeze(cumsum_exclusive, axis=1)
 
     x = expanded_unfolding_point[:, :, curDim]
-    value_of_interest = tf.tile(x, [1, vocabSize])
+    value_of_interest = tf.tile(x, [1, vocab_size])
 
     # determine the token selected (2 steps: xor and token)
     # differentiable xor (instead of tf.logical_xor)
@@ -188,7 +188,7 @@ def pzToSymbolAndZ(inputs):
     # next round on this dimension                
     c_iti_value = tf.matmul(oh_symbol, cumsum_exclusive, transpose_b=True)
     c_iti_value = tf.squeeze(c_iti_value, axis=1)
-    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
+    one_hots = dynamic_one_hot(one_softmax, lat_dim, curDim)
     one_hots = tf.squeeze(one_hots, axis=1)
 
     c_iti = c_iti_value * one_hots
@@ -196,12 +196,12 @@ def pzToSymbolAndZ(inputs):
 
     # the p_iti value has to be divided to the point for the next
     # round on this dimension                
-    one_hots = dynamic_one_hot(one_softmax, latDim, curDim)
+    one_hots = dynamic_one_hot(one_softmax, lat_dim, curDim)
     one_hots = tf.squeeze(one_hots, axis=1)
     p_iti_value = tf.matmul(oh_symbol, one_softmax, transpose_b=True)
     p_iti_value = K.squeeze(p_iti_value, axis=1)
     p_iti_and_zeros = p_iti_value * one_hots
-    ones = dynamic_ones(one_softmax, latDim)
+    ones = dynamic_ones(one_softmax, lat_dim)
     ones = K.squeeze(ones, axis=1)
     p_iti_plus_ones = tf.add(p_iti_and_zeros, ones)
     p_iti = tf.subtract(p_iti_plus_ones, one_hots)
@@ -253,18 +253,18 @@ def showGradientsAndTrainableParams(model):
 
 
 def tf_update_bounds_encoder(low_bound, upp_bound, softmax, s_j, tf_curDim):
-    vocabSize = tf.shape(softmax)[-1]
-    latDim = tf.shape(low_bound)[-1]
+    vocab_size = tf.shape(softmax)[-1]
+    lat_dim = tf.shape(low_bound)[-1]
 
     s = s_j[:, 0]
-    d_oh = tf.one_hot(tf_curDim * tf.ones_like(s), latDim)
-    _d_oh = tf.subtract(tf.ones(latDim), d_oh, name='d_inv_oh')
+    d_oh = tf.one_hot(tf_curDim * tf.ones_like(s), lat_dim)
+    _d_oh = tf.subtract(tf.ones(lat_dim), d_oh, name='d_inv_oh')
 
     c_upp = K.cumsum(softmax, axis=1)
     c_low = tf.cumsum(softmax, axis=1, exclusive=True)
     range_ = upp_bound[:, tf_curDim] - low_bound[:, tf_curDim]
 
-    s_oh = tf.one_hot(s, vocabSize)
+    s_oh = tf.one_hot(s, vocab_size)
 
     # tf convoluted way to assign a value to a location ,
     # to minimize time, I'll go to the first and fast solution
