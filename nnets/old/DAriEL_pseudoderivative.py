@@ -125,12 +125,12 @@ def DAriEL_Encoder_model(vocab_size=101,
                          emb_dim=2,
                          lat_dim=4,
                          language_model=None,
-                         max_senLen=6,
+                         maxlen=6,
                          startId=None):      
     
     layer = DAriEL_Encoder_Layer(vocab_size=vocab_size, emb_dim=emb_dim,
                                  lat_dim=lat_dim, language_model=language_model,
-                                 max_senLen=max_senLen, startId=startId)        
+                                 maxlen=maxlen, startId=startId)
     input_questions = Input(shape=(None,), name='question')    
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -145,7 +145,7 @@ class DAriEL_Encoder_Layer(object):
                  emb_dim=2,
                  lat_dim=4,
                  language_model=None,
-                 max_senLen=6,
+                 maxlen=6,
                  startId=None,
                  softmaxes=False):  
 
@@ -153,7 +153,7 @@ class DAriEL_Encoder_Layer(object):
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
                              language_model=language_model,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              startId=startId,
                              softmaxes=softmaxes)
         
@@ -174,7 +174,7 @@ class DAriEL_Encoder_Layer(object):
         final_softmaxes = expanded_os
         
         question_segments = []
-        for final in range(self.max_senLen):  
+        for final in range(self.maxlen):
             partial_question = Slice(1, 0, final + 1)(input_questions)   
             question_segments.append(partial_question)
             softmax = self.language_model(partial_question)
@@ -250,13 +250,13 @@ class probsToPoint(object):
 def DAriEL_Decoder_model(vocab_size=101,
                          emb_dim=2,
                          lat_dim=4,
-                         max_senLen=10,
+                         maxlen=10,
                          language_model=None,
                          startId=None,
                          output_type='both'):  
     
     layer = DAriEL_Decoder_Layer(vocab_size=vocab_size, emb_dim=emb_dim,
-                                 lat_dim=lat_dim, max_senLen=max_senLen,
+                                 lat_dim=lat_dim, maxlen=maxlen,
                                  language_model=language_model, startId=startId,
                                  output_type=output_type)
     input_point = Input(shape=(lat_dim,), name='input_point')
@@ -271,7 +271,7 @@ class DAriEL_Decoder_Layer(object):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=10,
+                 maxlen=10,
                  language_model=None,
                  startId=None,
                  output_type='both'):  
@@ -279,7 +279,7 @@ class DAriEL_Decoder_Layer(object):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              startId=startId,
                              output_type=output_type)
@@ -301,7 +301,7 @@ class DAriEL_Decoder_Layer(object):
         output = pointToProbs(vocab_size=self.vocab_size,
                               lat_dim=self.lat_dim,
                               emb_dim=self.emb_dim,
-                              max_senLen=self.max_senLen,
+                              maxlen=self.maxlen,
                               language_model=self.language_model,
                               startId=self.startId,
                               output_type=self.output_type)(input_point)
@@ -315,7 +315,7 @@ class pointToProbs(object):
                  vocab_size=2,
                  lat_dim=3,
                  emb_dim=2,
-                 max_senLen=10,
+                 maxlen=10,
                  language_model=None,
                  startId=None,
                  output_type='both'):
@@ -324,7 +324,7 @@ class pointToProbs(object):
             output_type: 'tokens', 'softmaxes' or 'both'
         """
         self.__dict__.update(vocab_size=vocab_size, lat_dim=lat_dim,
-                             emb_dim=emb_dim, max_senLen=max_senLen,
+                             emb_dim=emb_dim, maxlen=maxlen,
                              language_model=language_model,
                              startId=startId,
                              output_type=output_type)
@@ -332,7 +332,7 @@ class pointToProbs(object):
     def __call__(self, inputs):
         input_point = inputs
         
-        startId_layer = Lambda(dynamic_fill, arguments={'d': self.max_senLen, 'value': float(self.startId)})(input_point)
+        startId_layer = Lambda(dynamic_fill, arguments={'d': self.maxlen, 'value': float(self.startId)})(input_point)
         startId_layer = Lambda(K.squeeze, arguments={'axis': 1})(startId_layer)
         
         initial_softmax = self.language_model(startId_layer)    
@@ -412,7 +412,7 @@ class pointToProbs(object):
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
         # is maxLen
-        for tree_node in range(self.max_senLen):                
+        for tree_node in range(self.maxlen):
                 
             token, unfolding_point = Lambda(create_new_token)([one_softmax, unfolding_point])
             # output = Lambda(create_new_token)([one_softmax, unfolding_point])
@@ -423,7 +423,7 @@ class pointToProbs(object):
                 final_tokens = Concatenate(axis=1)([final_tokens, token])
             
             # FIXME: optimal way would be to cut the following tensor in order to be         
-            # of length max_senLen    
+            # of length maxlen
             tokens = Concatenate(axis=1)([final_tokens, startId_layer])
             
             # get the softmax for the next iteration
@@ -468,7 +468,7 @@ class Differentiable_AriEL(object):
                  lat_dim=3,
                  language_model=None,
                  startId=None,
-                 max_senLen=10,
+                 maxlen=10,
                  output_type='both'):
 
         self.__dict__.update(vocab_size=vocab_size,
@@ -476,7 +476,7 @@ class Differentiable_AriEL(object):
                              emb_dim=emb_dim,
                              language_model=language_model,
                              startId=startId,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              output_type=output_type)
         
         # both the encoder and the decoder will share the RNN and the embedding
@@ -495,13 +495,13 @@ class Differentiable_AriEL(object):
                                                   emb_dim=self.emb_dim,
                                                   lat_dim=self.lat_dim,
                                                   language_model=self.language_model,
-                                                  max_senLen=self.max_senLen,
+                                                  maxlen=self.maxlen,
                                                   startId=self.startId)
         
         self.DAriA_decoder = DAriEL_Decoder_Layer(vocab_size=self.vocab_size,
                                                   emb_dim=self.emb_dim,
                                                   lat_dim=self.lat_dim,
-                                                  max_senLen=self.max_senLen,
+                                                  maxlen=self.maxlen,
                                                   language_model=self.language_model,
                                                   startId=self.startId,
                                                   output_type=self.output_type)

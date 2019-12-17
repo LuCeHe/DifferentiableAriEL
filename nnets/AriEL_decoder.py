@@ -27,20 +27,20 @@ def ArielDecoderLayer1(
         emb_dim=3,
         lat_dim=3,
         size_lat_dim=1,
-        max_senLen=3,
+        maxlen=3,
         language_model=None,
         output_type=None,
         PAD=None):
     cell = ArielDecoderCell1(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD)
     rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
 
     input_point = Input(shape=(lat_dim,), name='point')
-    point = RepeatVector(max_senLen)(input_point)
+    point = RepeatVector(maxlen)(input_point)
     o_s = rnn(point)
     model = Model(inputs=input_point, outputs=o_s)
 
@@ -53,7 +53,7 @@ class ArielDecoderCell1(Layer):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=3,
+                 maxlen=3,
                  language_model=None,
                  size_lat_dim=1.,
                  PAD=None,
@@ -64,7 +64,7 @@ class ArielDecoderCell1(Layer):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD)
 
@@ -80,7 +80,7 @@ class ArielDecoderCell1(Layer):
     @property
     def state_size(self):
         return (self.vocab_size,
-                self.max_senLen,
+                self.maxlen,
                 self.lat_dim,
                 1,
                 1)
@@ -143,7 +143,7 @@ class ArielDecoderLayer0(object):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=10,
+                 maxlen=10,
                  language_model=None,
                  PAD=None,
                  size_lat_dim=1,
@@ -152,7 +152,7 @@ class ArielDecoderLayer0(object):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD,
                              size_lat_dim=size_lat_dim,
@@ -188,7 +188,7 @@ class ArielDecoderLayer0(object):
         # NOTE: since ending on the EOS token would fail for mini-batches, 
         # the algorithm stops at a maxLen when the length of the sentence 
         # is maxLen
-        for _ in range(self.max_senLen):
+        for _ in range(self.maxlen):
 
             token, unfolding_point = Lambda(pzToSymbolAndZ)([one_softmax, unfolding_point, curDim_t])
             token.set_shape((batch_size, 1))
@@ -209,7 +209,7 @@ class ArielDecoderLayer0(object):
         # remove last softmax, since the initial was given by the an initial
         # zero vector
         softmaxes = Lambda(slice_)(final_softmaxes)
-        tokens = Slice(1, 1, self.max_senLen + 1)(final_tokens)
+        tokens = Slice(1, 1, self.maxlen + 1)(final_tokens)
 
         # FIXME: give two options: the model giving back the whole softmaxes
         # sequence, or the model giving back the sequence of tokens         
@@ -233,7 +233,7 @@ class ArielDecoderLayer2(object):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=10,
+                 maxlen=10,
                  language_model=None,
                  PAD=None,
                  size_lat_dim=3,
@@ -242,7 +242,7 @@ class ArielDecoderLayer2(object):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD,
                              size_lat_dim=size_lat_dim,
@@ -256,7 +256,7 @@ class ArielDecoderLayer2(object):
         if self.PAD == None: raise ValueError('Define the startId you are using ;) ')
 
     def __call__(self, input_point):
-        sentence_layer = Lambda(dynamic_filler, arguments={'d': self.max_senLen + 1, 'value': int(self.PAD)})(
+        sentence_layer = Lambda(dynamic_filler, arguments={'d': self.maxlen + 1, 'value': int(self.PAD)})(
             input_point)
 
         # by clipping the values, it can accept inputs that go beyond the 
@@ -270,7 +270,7 @@ class ArielDecoderLayer2(object):
 
         curDim = 0
         # output = []
-        for j in range(self.max_senLen):
+        for j in range(self.maxlen):
             s_0toj = Slice(1, 0, j + 1)(sentence_layer)
             softmax = self.language_model(s_0toj)
 
@@ -281,7 +281,7 @@ class ArielDecoderLayer2(object):
                 [Ls, Us, low_bound, upp_bound, input_point])
 
             sentence_layer = ReplaceColumn(j + 1)([sentence_layer, s])
-            sentence_layer.set_shape((None, self.max_senLen + 1))
+            sentence_layer.set_shape((None, self.maxlen + 1))
 
             # output.extend([low_bound])
             # NOTE: at each iteration, change the dimension
@@ -289,7 +289,7 @@ class ArielDecoderLayer2(object):
             if curDim >= self.lat_dim:
                 curDim = 0
 
-        sentence_layer = Slice(1, 1, self.max_senLen + 1)(sentence_layer)
+        sentence_layer = Slice(1, 1, self.maxlen + 1)(sentence_layer)
         return sentence_layer
 
 
@@ -297,7 +297,7 @@ def test():
     np.set_printoptions(precision=2)
 
     LM = None
-    lat_dim, vocab_size, max_senLen = 2, 3, 4
+    lat_dim, vocab_size, maxlen = 2, 3, 4
     size_lat_dim = 2.3
     PAD = 0
 
@@ -306,7 +306,7 @@ def test():
 
     decoder = DAriEL_Decoder_Layer_2(vocab_size=vocab_size,
                                      lat_dim=lat_dim,
-                                     max_senLen=max_senLen,
+                                     maxlen=maxlen,
                                      output_type='both',
                                      language_model=LM,
                                      size_lat_dim=size_lat_dim,

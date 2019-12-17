@@ -39,7 +39,7 @@ ex.logger = logger
 def cfg():
     batch_size = 4
     lat_dim = 3
-    max_senLen = 6
+    maxlen = 6
     vocab_size = 2
     emb_dim = 1
     n_profiles = 3
@@ -49,7 +49,7 @@ def cfg():
 @LogFileWriter(ex)
 def main_test(
         vocab_size,
-        max_senLen,
+        maxlen,
         emb_dim,
         lat_dim,
         batch_size,
@@ -65,7 +65,7 @@ def main_test(
     sentences, points = random_sequences_and_points(
         batch_size=batch_size,
         lat_dim=lat_dim,
-        max_senLen=max_senLen,
+        maxlen=maxlen,
         vocab_size=vocab_size)
 
     tf_sentences = tf.convert_to_tensor(sentences, dtype=tf.float32)
@@ -75,7 +75,7 @@ def main_test(
             vocab_size=vocab_size,
             emb_dim=emb_dim,
             lat_dim=lat_dim,
-            max_senLen=max_senLen,
+            maxlen=maxlen,
             output_type='both',
             language_model=None,
             encoder_type=model_type,

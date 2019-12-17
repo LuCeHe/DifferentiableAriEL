@@ -79,7 +79,7 @@ grammar = CFG.fromstring("""
 
 
 vocab_size = 3  # this value is going to be overwriter after the sentences generator
-max_senLen = 6
+maxlen = 6
 batch_size = 128
 # FIXME:
 # lat_dim = 7, emb_dim = 5 seems to explode with gaussian noise
@@ -101,7 +101,7 @@ def main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=maxlen, categorical=categorical_TF)
     generator = generator_class.generator()
 
     vocab_size = generator_class.vocab_size
@@ -113,7 +113,7 @@ def main(categorical_TF=True):
     DAriA_dcd = DAriEL(vocab_size=vocab_size,
                                    emb_dim=emb_dim,
                                    lat_dim=lat_dim,
-                                   max_senLen=max_senLen,
+                                   maxlen=maxlen,
                                    startId=generator_class.startId,
                                    output_type='both')
 
@@ -211,7 +211,7 @@ def simpler_main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=maxlen, categorical=categorical_TF)
     generator = generator_class.generator()
 
     vocab_size = generator_class.vocab_size
@@ -274,7 +274,7 @@ def simpler_main(categorical_TF=True):
     DAriA_dcd = Differential_AriEL(vocab_size = vocab_size,
                                    emb_dim = emb_dim,
                                    lat_dim = lat_dim,
-                                   max_senLen = max_senLen,
+                                   maxlen = maxlen,
                                    output_type = 'both',
                                    embedding = embedding,
                                    rnn = lstm,
@@ -318,7 +318,7 @@ def even_simpler_main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = c2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = c2n_generator(grammar, batch_size, maxlen=maxlen, categorical=categorical_TF)
     generator = generator_class.generator()
 
     vocab_size = generator_class.vocab_size
@@ -417,7 +417,7 @@ def test_DAriEL_model_from_outside_v2():
     DAriEL = Differentiable_AriEL(vocab_size = vocab_size,
                                   emb_dim = emb_dim,
                                   lat_dim = lat_dim,
-                                  max_senLen = max_senLen,
+                                  maxlen = maxlen,
                                   output_type = 'both',
                                   language_model = LM,
                                   startId = 0)

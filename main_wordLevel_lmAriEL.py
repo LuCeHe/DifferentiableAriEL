@@ -58,7 +58,7 @@ grammar = CFG.fromstring("""
 
 grammar = nltk.data.load('data/word_grammar.cfg')
 vocab_size = 831  #36  # this value is going to be overwriter after the sentences generator
-max_senLen = 14
+maxlen = 14
 batch_size = 128
 # FIXME:
 # lat_dim = 7, emb_dim = 5 seems to explode with gaussian noise
@@ -78,7 +78,7 @@ model_path = 'data/model_nw_full_grammar.h5'
 def checkAutoencoder(ae_model, valIndices):
     
     categorical_TF=True
-    generator_class = w2n_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = w2n_generator(grammar, batch_size, maxlen=maxlen, categorical=categorical_TF)
     generator = generator_class.generator()
     valIndices = next(generator)
     data = np.argmax(valIndices[1], axis=2)  # valIndices[0]    #
@@ -88,7 +88,7 @@ def checkAutoencoder(ae_model, valIndices):
     DAriEL = Differentiable_AriEL(vocab_size = vocab_size,
                                   emb_dim = emb_dim,
                                   lat_dim = lat_dim,
-                                  max_senLen = max_senLen,
+                                  maxlen = maxlen,
                                   output_type = 'tokens',
                                   language_model = ae_model,
                                   startId = 0)
@@ -128,7 +128,7 @@ def checkEncoder(ae_model, valIndices):
     DAriEL = Differentiable_AriEL(vocab_size = vocab_size,
                                   emb_dim = emb_dim,
                                   lat_dim = lat_dim,
-                                  max_senLen = max_senLen,
+                                  maxlen = maxlen,
                                   output_type = 'both',
                                   language_model = ae_model,
                                   startId = 0)
@@ -145,7 +145,7 @@ def checkDecoder(ae_model, generator_class, input_sentence, output_sentence, sen
     DAriEL = Differentiable_AriEL(vocab_size = vocab_size,
                                   emb_dim = emb_dim,
                                   lat_dim = lat_dim,
-                                  max_senLen = max_senLen,
+                                  maxlen = maxlen,
                                   output_type = 'both',
                                   language_model = ae_model,
                                   startId = 0)
@@ -192,7 +192,7 @@ def main(categorical_TF=True):
     # sys.stdout = open(experiment_path + 'training.txt', 'w')
 
     # dataset to be learned
-    generator_class = next_word_generator(grammar, batch_size, maxlen=max_senLen, categorical=categorical_TF)
+    generator_class = next_word_generator(grammar, batch_size, maxlen=maxlen, categorical=categorical_TF)
     generator = generator_class.generator()
 
     vocab_size = generator_class.vocab_size

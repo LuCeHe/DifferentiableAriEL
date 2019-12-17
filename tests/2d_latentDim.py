@@ -81,12 +81,12 @@ def checkSpaceCoverageDecoder(LM,
                               tf_RNN=False):
     points = np.random.rand(10000, lat_dim)
 
-    for max_senLen in range(1, 6):
+    for maxlen in range(1, 6):
         DAriA = AriEL(
             vocab_size=vocab_size,
             emb_dim=emb_dim,
             lat_dim=lat_dim,
-            max_senLen=max_senLen,
+            maxlen=maxlen,
             output_type='both',
             language_model=LM,
             decoder_type=0,
@@ -128,7 +128,7 @@ def checkSpaceCoverageDecoder(LM,
         axes.set_ylim([0 - eps, 1 + eps])
         plt.show()
 
-        fig.savefig('../data/tmp/decoder_{}.png'.format(max_senLen), dpi=fig.dpi)
+        fig.savefig('../data/tmp/decoder_{}.png'.format(maxlen), dpi=fig.dpi)
 
 
 @ex.capture
@@ -157,12 +157,12 @@ def checkSpaceCoverageEncoder(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
 
         predictions = []
         for sentence in choices:
-            max_senLen = len(sentence)
+            maxlen = len(sentence)
             DAriA = AriEL(
                 vocab_size=vocab_size,
                 emb_dim=emb_dim,
                 lat_dim=lat_dim,
-                max_senLen=max_senLen,
+                maxlen=maxlen,
                 output_type='both',
                 language_model=LM,
                 encoder_type=1,
@@ -197,7 +197,7 @@ def checkSpaceCoverageEncoder(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
 
 @ex.capture
 def checkReconstruction(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
-    max_senLen = 100
+    maxlen = 100
     batch_size = 20
     encoder_type = 0
     decoder_type = 0
@@ -206,7 +206,7 @@ def checkReconstruction(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
         vocab_size=vocab_size,
         emb_dim=emb_dim,
         lat_dim=lat_dim,
-        max_senLen=max_senLen,
+        maxlen=maxlen,
         output_type='both',
         language_model=LM,
         encoder_type=encoder_type,
@@ -220,7 +220,7 @@ def checkReconstruction(LM, lat_dim, vocab_size, PAD, emb_dim, choices):
     discrete_output = DAriA.decode(continuous_output)
     reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
 
-    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, maxlen))
     if not decoder_type == 2:
         prediction = reconstruction_model.predict(sentences)[0].astype(int)
     else:

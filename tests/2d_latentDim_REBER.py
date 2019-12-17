@@ -27,7 +27,7 @@ from DifferentiableAriEL.nnets.AriEL import AriEL
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 from sacred.observers import FileStorageObserver
-#from GenericTools.SacredTools.VeryCustomSacred import CustomFileStorageObserver
+# from GenericTools.SacredTools.VeryCustomSacred import CustomFileStorageObserver
 
 from DifferentiableAriEL.convenience_tools.utils import train_language_model_curriculum_learning
 from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
@@ -35,7 +35,7 @@ from GenericTools.StayOrganizedTools.utils import timeStructured
 
 ex = Experiment('LSNN_AE')
 ex.observers.append(FileStorageObserver.create("experiments"))
-#ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
+# ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
 
 # ex.observers.append(MongoObserver())
 ex.captured_out_filter = apply_backspaces_and_linefeeds
@@ -85,14 +85,14 @@ def cfg():
 
     # params
 
-    max_senLen = 200
+    maxlen = 200
     encoder_type = 0
     decoder_type = 0
     size_lat_dim = 1e6
 
     lat_dim = 16  # 2
 
-
+    # training params
 
     is_laptop = False
     if is_laptop:
@@ -100,18 +100,31 @@ def cfg():
         nb_lines = 5
         epochs = 10
     else:
-        batch_size = 512  # 256
+        batch_size = 8  # 256
         nb_lines = 1e6
         epochs = 100
-    steps_per_epoch = int(nb_lines / batch_size)
 
     do_train = True
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
     emb_dim = int(np.sqrt(vocab_size) + 1)
-
+    units = 2  # 256
     del vocabulary
+
+    training_params = {}
+    training_params.update(
+        train_gzip=train_gzip,
+        val_gzip=val_gzip,
+        grammar_filepath=grammar_filepath,
+        batch_size=batch_size,
+        vocab_size=vocab_size,
+        emb_dim=emb_dim,
+        units=units,
+        epochs=epochs,
+        nb_lines=nb_lines,
+        LM_path=LM_path,
+        log_path=log_path)
 
 
 @ex.capture
@@ -119,8 +132,7 @@ def checkGeneration(
         LM,
         lat_dim,
         vocab_size,
-        emb_dim,
-        max_senLen,
+        maxlen,
         encoder_type,
         decoder_type,
         size_lat_dim,
@@ -132,9 +144,8 @@ def checkGeneration(
 
     ariel = AriEL(
         vocab_size=vocab_size,
-        emb_dim=emb_dim,
         lat_dim=lat_dim,
-        max_senLen=max_senLen,
+        maxlen=maxlen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
@@ -162,7 +173,7 @@ def checkRandomReconstruction(
         lat_dim,
         vocab_size,
         emb_dim,
-        max_senLen,
+        maxlen,
         encoder_type,
         decoder_type,
         size_lat_dim,
@@ -174,7 +185,7 @@ def checkRandomReconstruction(
         vocab_size=vocab_size,
         emb_dim=emb_dim,
         lat_dim=lat_dim,
-        max_senLen=max_senLen,
+        maxlen=maxlen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
@@ -188,7 +199,7 @@ def checkRandomReconstruction(
     discrete_output = ariel.decode(continuous_output)
     reconstruction_model = Model(inputs=input_questions, outputs=discrete_output)
 
-    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, maxlen))
     prediction = reconstruction_model.predict(sentences).astype(int)
 
     t = PrettyTable(['sentences', 'reconstructions'])
@@ -217,20 +228,20 @@ def checkTrainingReconstruction(
         lat_dim,
         vocab_size,
         emb_dim,
-        max_senLen,
+        maxlen,
         encoder_type,
         decoder_type,
         size_lat_dim):
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
-    sentences = sentences[:, :max_senLen]
-    max_senLen = sentences.shape[1]
+    sentences = sentences[:, :maxlen]
+    maxlen = sentences.shape[1]
     ariel = AriEL(
         vocab_size=vocab_size,
         emb_dim=emb_dim,
         lat_dim=lat_dim,
-        max_senLen=max_senLen,
+        maxlen=maxlen,
         output_type='tokens',
         language_model=LM,
         encoder_type=encoder_type,
@@ -266,17 +277,9 @@ def checkTrainingReconstruction(
 
 @ex.automain
 def test_2d_visualization_trainOutside(
-        train_gzip,
-        val_gzip,
-        grammar_filepath,
-        batch_size,
-        vocab_size,
-        emb_dim,
         LM_path,
         epochs,
-        nb_lines,
-        steps_per_epoch,
-        log_path,
+        training_params,
         do_train,
         _log):
     # FIXME: it's cool that it is learning but it doesn't
@@ -292,17 +295,7 @@ def test_2d_visualization_trainOutside(
             LM_path,
             log_path)
         """
-        LM = train_language_model_curriculum_learning(
-            train_gzip, val_gzip,
-            grammar_filepath,
-            batch_size,
-            vocab_size,
-            emb_dim,
-            epochs,
-            nb_lines,
-            steps_per_epoch,
-            LM_path,
-            log_path)
+        LM = train_language_model_curriculum_learning(**training_params)
     else:
         LM = load_model(LM_path)
 

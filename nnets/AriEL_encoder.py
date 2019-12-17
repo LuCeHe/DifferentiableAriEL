@@ -24,11 +24,11 @@ def DAriEL_Encoder_model(vocab_size=101,
                          emb_dim=2,
                          lat_dim=4,
                          language_model=None,
-                         max_senLen=6,
+                         maxlen=6,
                          PAD=None):
     layer = DAriEL_Encoder_Layer_0(vocab_size=vocab_size, emb_dim=emb_dim,
                                    lat_dim=lat_dim, language_model=language_model,
-                                   max_senLen=max_senLen, PAD=PAD)
+                                   maxlen=maxlen, PAD=PAD)
     input_questions = Input(shape=(None,), name='question')
     point = layer(input_questions)
     model = Model(inputs=input_questions, outputs=point)
@@ -44,7 +44,7 @@ class ArielEncoderLayer0(object):
                  lat_dim=4,
                  language_model=None,
                  size_lat_dim=0,
-                 max_senLen=6,
+                 maxlen=6,
                  PAD=None,
                  softmaxes=False):
 
@@ -52,7 +52,7 @@ class ArielEncoderLayer0(object):
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
                              language_model=language_model,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              PAD=PAD,
                              softmaxes=softmaxes)
 
@@ -71,7 +71,7 @@ class ArielEncoderLayer0(object):
         expanded_os = ExpandDims(1)(softmax)
         final_softmaxes = expanded_os
 
-        for final in range(self.max_senLen):
+        for final in range(self.maxlen):
             partial_question = Slice(1, 0, final + 1)(input_questions)
             softmax = self.language_model(partial_question)
             expanded_os = ExpandDims(1)(softmax)
@@ -153,7 +153,7 @@ class ArielEncoderLayer1(object):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=10,
+                 maxlen=10,
                  language_model=None,
                  PAD=None,
                  size_lat_dim=3,
@@ -162,7 +162,7 @@ class ArielEncoderLayer1(object):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD,
                              size_lat_dim=size_lat_dim,
@@ -186,7 +186,7 @@ class ArielEncoderLayer1(object):
             input_question)
 
         curDim = 0
-        for j in range(self.max_senLen - 1):
+        for j in range(self.maxlen - 1):
             s_0toj = Slice(1, 0, j + 1)(sentence_layer)
             s_j = Slice(1, j + 1, j + 2)(sentence_layer)
             softmax = self.language_model(s_0toj)
@@ -207,14 +207,14 @@ def ArielEncoderLayer2(
         vocab_size=3,
         emb_dim=3,
         lat_dim=3,
-        max_senLen=3,
+        maxlen=3,
         size_lat_dim=1.,
         language_model=None,
         PAD=None):
     cell = ArielEncoderCell2(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              size_lat_dim=size_lat_dim,
                              language_model=language_model,
                              PAD=PAD)
@@ -234,7 +234,7 @@ class ArielEncoderCell2(Layer):
                  vocab_size=101,
                  emb_dim=2,
                  lat_dim=4,
-                 max_senLen=3,
+                 maxlen=3,
                  language_model=None,
                  size_lat_dim=3,
                  PAD=None,
@@ -244,7 +244,7 @@ class ArielEncoderCell2(Layer):
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
                              lat_dim=lat_dim,
-                             max_senLen=max_senLen,
+                             maxlen=maxlen,
                              language_model=language_model,
                              size_lat_dim=size_lat_dim,
                              PAD=PAD)
@@ -262,7 +262,7 @@ class ArielEncoderCell2(Layer):
     def state_size(self):
         return (self.lat_dim,
                 self.lat_dim,
-                self.max_senLen + 1,
+                self.maxlen + 1,
                 self.lat_dim,
                 1,
                 1)
@@ -320,17 +320,17 @@ class ArielEncoderCell2(Layer):
 
 
 def test():
-    vocab_size, batch_size, max_senLen = 3, 6, 5
+    vocab_size, batch_size, maxlen = 3, 6, 5
     lat_dim = 2
 
     input_questions = Input((None,))
     encoded = ArielEncoderLayer1(PAD=0,
                                  vocab_size=vocab_size,
                                  lat_dim=lat_dim,
-                                 max_senLen=max_senLen, )(input_questions)
+                                 maxlen=maxlen, )(input_questions)
     model = Model(input_questions, encoded)
 
-    sentences = np.random.randint(vocab_size, size=(batch_size, max_senLen))
+    sentences = np.random.randint(vocab_size, size=(batch_size, maxlen))
 
     prediction = model.predict(sentences)
 

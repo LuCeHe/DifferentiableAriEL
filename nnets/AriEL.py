@@ -38,7 +38,7 @@ class AriEL(object):
                  lat_dim=3,
                  language_model=None,
                  PAD=None,
-                 max_senLen=10,
+                 maxlen=10,
                  decoder_type=1,
                  encoder_type=1,
                  size_lat_dim=10,
@@ -52,7 +52,7 @@ class AriEL(object):
             size_lat_dim=size_lat_dim,
             language_model=language_model,
             PAD=PAD,
-            max_senLen=max_senLen)
+            maxlen=maxlen)
         self.__dict__.update(**self.common_kwargs, output_type=output_type)
 
         # if the input is a rnn, use that, otherwise use an LSTM

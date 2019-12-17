@@ -58,17 +58,18 @@ def train_language_model(
 
 
 def train_language_model_curriculum_learning(
-        train_gzip, val_gzip,
+        train_gzip,
+        val_gzip,
         grammar_filepath,
         batch_size,
         vocab_size,
         emb_dim,
+        units,
         epochs,
         nb_lines,
-        steps_per_epoch,
         LM_path,
         log_path):
-    LM = predefined_model(vocab_size, emb_dim)
+    LM = predefined_model(vocab_size, emb_dim, units)
     LM.summary()
     LM.compile(
         loss='categorical_crossentropy',
@@ -110,8 +111,8 @@ def train_language_model_curriculum_learning(
                 validation_data=val_generator,
                 epochs=epochs,
                 callbacks=callbacks,
-                use_multiprocessing=True,
-                workers=4)
+                use_multiprocessing=False,
+                workers=1)
             LM.save(LM_path)
 
     except KeyboardInterrupt:

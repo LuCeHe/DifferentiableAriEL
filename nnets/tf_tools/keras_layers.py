@@ -120,9 +120,9 @@ class SelfAdjustingGaussianNoise(Layer):
 """
 
 
-def predefined_model(vocab_size, emb_dim):
+def predefined_model(vocab_size, emb_dim, units = 256):
     embedding = Embedding(vocab_size, emb_dim, mask_zero='True')
-    lstm = LSTM(256, return_sequences=False)
+    lstm = LSTM(units, return_sequences=False)
 
     input_question = Input(shape=(None,), name='discrete_sequence')
     embed = embedding(input_question)
