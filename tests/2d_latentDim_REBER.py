@@ -90,8 +90,10 @@ def cfg():
     lat_dim = 16  # 2
 
     epochs = 10
-    batch_size = 1024 #256
-    steps_per_epoch = int(1e6/batch_size)
+    batch_size = 3 #256
+
+    nb_lines = 5
+    steps_per_epoch = int(nb_lines/batch_size)
 
     do_train = True
 
@@ -260,7 +262,10 @@ def test_2d_visualization_trainOutside(
         batch_size,
         vocab_size,
         emb_dim,
-        LM_path, epochs, steps_per_epoch,
+        LM_path,
+        epochs,
+        nb_lines,
+        steps_per_epoch,
         log_path,
         do_train,
         _log):
@@ -285,6 +290,7 @@ def test_2d_visualization_trainOutside(
             vocab_size,
             emb_dim,
             epochs,
+            nb_lines,
             steps_per_epoch,
             LM_path,
             log_path)
