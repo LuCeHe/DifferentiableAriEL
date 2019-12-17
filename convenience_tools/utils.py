@@ -4,7 +4,7 @@ from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tqdm import tqdm
 
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
-from GenericTools.LeanguageTreatmentTools.sentenceGenerators import GzipToNextStepGenerator
+from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextStepGenerator, MockNextStepGenerator, MockDataGenerator
 
 
 def sort_gzip_by_length(gzipDatasetFilepath):
@@ -39,6 +39,7 @@ def train_language_model(
         metrics=['categorical_accuracy'])
 
     callbacks = []
+    
     callbacks.append(TensorBoard(
         log_path,
         histogram_freq=int(epochs / 20) + 1,
@@ -69,12 +70,14 @@ def train_language_model_curriculum_learning(
         log_path):
 
     LM = predefined_model(vocabSize, embDim)
+    LM.summary()
     LM.compile(
         loss='categorical_crossentropy',
         optimizer='SGD',
         metrics=['categorical_accuracy'])
 
     callbacks = []
+    """
     tb = TensorBoard(
         log_path,
         histogram_freq=int(epochs / 20) + 1,
@@ -85,16 +88,19 @@ def train_language_model_curriculum_learning(
     )
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=100)
     callbacks.extend([tb, es])
-
+    """
     try:
-        for max_sentence_len in range(4, 200, 3):
-            generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size, maxSentenceLen=max_sentence_len)
-
+        for maxlen in range(4, 200, 5):
+            generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size, maxSentenceLen=maxlen)
+            #generator = MockNextStepGenerator(batch_size=batch_size, maxlen=maxlen)
+            #generator = MockDataGenerator(batch_size=batch_size, maxlen=maxlen)
             LM.fit_generator(
                 generator,
                 epochs=1,
+                use_multiprocessing=True,
                 steps_per_epoch=steps_per_epoch,
-                callbacks=callbacks)
+                #verbose=2,
+                workers=8)
             LM.save(LM_path)
 
     except KeyboardInterrupt:

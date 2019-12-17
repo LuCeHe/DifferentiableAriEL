@@ -30,7 +30,7 @@ from sacred.observers import FileStorageObserver
 
 from DifferentiableAriEL.convenience_tools.utils import train_language_model_curriculum_learning
 from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
-from GenericTools.LeanguageTreatmentTools.sentenceGenerators import GzipToNextStepGenerator, GzipToIndicesGenerator
+from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextStepGenerator, GzipToIndicesGenerator
 from GenericTools.StayOrganizedTools.utils import timeStructured
 
 ex = Experiment('LSNN_AE')
@@ -58,7 +58,7 @@ def cfg():
     time_string = timeStructured()
 
     # GPU setting
-
+    
     GPU = 0
     GPU_fraction = .80
 
@@ -90,8 +90,8 @@ def cfg():
     latDim = 16  # 2
 
     epochs = 10
-    steps_per_epoch = 1e4
-    batch_size = 256
+    steps_per_epoch = 3900  #1e4
+    batch_size = 256 #256
 
     do_train = True
 
@@ -112,8 +112,8 @@ def checkGeneration(
         encoder_type,
         decoder_type,
         size_latDim,
-        grammar_filepath
-):
+        grammar_filepath):
+    
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
@@ -264,8 +264,7 @@ def test_2d_visualization_trainOutside(
         log_path,
         do_train,
         _log):
-    generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
-
+    
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
     if not os.path.isfile(LM_path) or do_train:
@@ -293,6 +292,8 @@ def test_2d_visualization_trainOutside(
         LM = load_model(LM_path)
 
     print('\n   Check LM   \n')
+    
+    generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
 
     batch = next(generator)
     output = LM.predict(batch[0])
