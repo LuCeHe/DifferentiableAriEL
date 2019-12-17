@@ -52,6 +52,7 @@ logger.setLevel('INFO')
 # attach it to the experiment
 ex.logger = logger
 
+CDIR = os.path.dirname(os.path.realpath(__file__))
 
 @ex.config
 def cfg():
@@ -78,7 +79,8 @@ def cfg():
     log_path = temp_folder + 'logs/' + time_string + '_'
 
     grammar_filepath = '../data/simplerREBER_grammar.cfg'
-    gzip_filepath = '../data/REBER_biased_train.gz'
+    train_gzip = os.path.join(CDIR, '../data/REBER_biased_train.gz')
+    val_gzip = os.path.join(CDIR, '../data/REBER_biased_val.gz')
 
     # params
 
@@ -257,7 +259,8 @@ def checkTrainingReconstruction(
 
 @ex.automain
 def test_2d_visualization_trainOutside(
-        gzip_filepath,
+        train_gzip,
+        val_gzip,
         grammar_filepath,
         batch_size,
         vocab_size,
@@ -284,7 +287,7 @@ def test_2d_visualization_trainOutside(
             log_path)
         """
         LM = train_language_model_curriculum_learning(
-            gzip_filepath,
+            train_gzip, val_gzip,
             grammar_filepath,
             batch_size,
             vocab_size,
