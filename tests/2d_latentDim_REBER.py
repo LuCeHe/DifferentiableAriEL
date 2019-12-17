@@ -92,16 +92,17 @@ def cfg():
 
     lat_dim = 16  # 2
 
-    epochs = 10
+
 
     is_laptop = False
     if is_laptop:
         batch_size = 3  # 256
         nb_lines = 5
+        epochs = 10
     else:
         batch_size = 512  # 256
         nb_lines = 1e6
-
+        epochs = 100
     steps_per_epoch = int(nb_lines / batch_size)
 
     do_train = True

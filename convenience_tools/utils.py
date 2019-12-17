@@ -1,6 +1,6 @@
 import gzip
 
-from tensorflow.keras.callbacks import TensorBoard
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tqdm import tqdm
 
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
@@ -86,7 +86,7 @@ def train_language_model_curriculum_learning(
         batch_size=10
     )
     """
-    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=100)
+    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=int(1*epochs/4))
     callbacks.extend([es])
 
     try:
