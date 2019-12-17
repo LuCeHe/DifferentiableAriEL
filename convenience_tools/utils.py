@@ -85,9 +85,9 @@ def train_language_model_curriculum_learning(
         write_images=False,
         batch_size=10
     )
-    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=100)
-    callbacks.extend([tb, es])
     """
+    es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=100)
+    callbacks.extend([es])
 
     try:
         for maxlen in range(4, 200, 5):
@@ -104,14 +104,14 @@ def train_language_model_curriculum_learning(
             train_generator = GzipToNextToken_KerasGenerator(gzip_filepath=train_gzip, **generators_params)
 
             val_generator = GzipToNextToken_KerasGenerator(gzip_filepath=val_gzip, **generators_params)
-            print(train_gzip, val_gzip)
+
             LM.fit_generator(
                 generator=train_generator,
                 validation_data=val_generator,
                 epochs=epochs,
-                use_multiprocessing=False,
-                # steps_per_epoch=steps_per_epoch,
-                workers=1)
+                callbacks=callbacks,
+                use_multiprocessing=True,
+                workers=4)
             LM.save(LM_path)
 
     except KeyboardInterrupt:

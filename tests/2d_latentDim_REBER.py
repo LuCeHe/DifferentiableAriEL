@@ -27,15 +27,15 @@ from DifferentiableAriEL.nnets.AriEL import AriEL
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 from sacred.observers import FileStorageObserver
+#from GenericTools.SacredTools.VeryCustomSacred import CustomFileStorageObserver
 
 from DifferentiableAriEL.convenience_tools.utils import train_language_model_curriculum_learning
 from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
-from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextStepGenerator, GzipToIndicesGenerator
 from GenericTools.StayOrganizedTools.utils import timeStructured
 
 ex = Experiment('LSNN_AE')
 ex.observers.append(FileStorageObserver.create("experiments"))
-# ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
+#ex.observers.append(CustomFileStorageObserver.create("../data/experiments"))
 
 # ex.observers.append(MongoObserver())
 ex.captured_out_filter = apply_backspaces_and_linefeeds
@@ -54,13 +54,14 @@ ex.logger = logger
 
 CDIR = os.path.dirname(os.path.realpath(__file__))
 
+
 @ex.config
 def cfg():
     time_string = timeStructured()
 
     # GPU setting
-    
-    GPU = 0
+
+    GPU = 1
     GPU_fraction = .80
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -92,10 +93,16 @@ def cfg():
     lat_dim = 16  # 2
 
     epochs = 10
-    batch_size = 3 #256
 
-    nb_lines = 5
-    steps_per_epoch = int(nb_lines/batch_size)
+    is_laptop = False
+    if is_laptop:
+        batch_size = 3  # 256
+        nb_lines = 5
+    else:
+        batch_size = 512  # 256
+        nb_lines = 1e6
+
+    steps_per_epoch = int(nb_lines / batch_size)
 
     do_train = True
 
@@ -117,7 +124,6 @@ def checkGeneration(
         decoder_type,
         size_lat_dim,
         grammar_filepath):
-    
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     PAD = vocabulary.padIndex
 
@@ -272,7 +278,6 @@ def test_2d_visualization_trainOutside(
         log_path,
         do_train,
         _log):
-    
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
     if not os.path.isfile(LM_path) or do_train:
@@ -299,7 +304,7 @@ def test_2d_visualization_trainOutside(
             log_path)
     else:
         LM = load_model(LM_path)
-        
+
     """
     print('\n   Check LM   \n')
     
