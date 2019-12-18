@@ -5,6 +5,8 @@ import sys
 import numpy
 from prettytable import PrettyTable
 
+from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextStepGenerator, GzipToIndicesGenerator
+
 numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
 
 import numpy as np
@@ -276,12 +278,15 @@ def checkTrainingReconstruction(
 
 
 @ex.automain
-def test_2d_visualization_trainOutside(
+def test_on_reber(
+        gzip_filepath, grammar_filepath, batch_size,
         LM_path,
         epochs,
         training_params,
         do_train,
         _log):
+
+
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
     if not os.path.isfile(LM_path) or do_train:
@@ -299,9 +304,8 @@ def test_2d_visualization_trainOutside(
     else:
         LM = load_model(LM_path)
 
-    """
     print('\n   Check LM   \n')
-    
+
     generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
 
     batch = next(generator)
@@ -328,4 +332,3 @@ def test_2d_visualization_trainOutside(
     sentences = next(generator)
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
-    """
