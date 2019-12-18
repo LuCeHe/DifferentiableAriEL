@@ -94,11 +94,11 @@ def cfg():
     decoder_type = 0
     size_lat_dim = 1e6
 
-    lat_dim = 16  # 2
+    lat_dim = 2  # 2  # 16  #   
 
     # training params
 
-    is_laptop = True
+    is_laptop = False
     if is_laptop:
         batch_size = 3  # 256
         nb_lines = 5

@@ -7,7 +7,7 @@ from tensorflow.keras.optimizers import Adam
 import grammar_on_transformer.dataloader as dd
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextToken_KerasGenerator, \
-    GzipToIndicesGenerator, generateFromGzip
+    generateFromGzip
 from grammar_on_transformer.layers.transformer import Transformer
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,6 @@ def with_transformer(
         nb_lines,
         LM_path,
         log_path):
-
     maxlen = 200
     try:
 
@@ -145,13 +144,13 @@ def with_transformer(
         val_generator = generateFromGzip(val_gzip, batch_size)
 
         t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
-        #t_object.train(
-        #    train_generator=train_generator,
-        #    val_generator=val_generator,
-        #    epochs=epochs,
-        #    steps_per_epoch=steps_per_epoch,
-        #    batch_size=batch_size,
-        #    modelFilename='somewhere', verbose=0)
+        t_object.train(
+            train_generator=train_generator,
+            val_generator=val_generator,
+            epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
+            batch_size=batch_size,
+            modelFilename='somewhere', verbose=0)
 
 
 
@@ -159,10 +158,10 @@ def with_transformer(
         print("Training interrupted by the user")
 
     indices = next(val_generator)
-    for i in range(10):
+    for frase in indices:
         print('')
-        print(indices[i])
-        softmax = t_object.s2s.next_symbol_prediction(indices[i][:-2])
+        input_seq = frase[:-2]
+        softmax = t_object.s2s.next_symbol_prediction(input_seq)
         print(softmax)
     # LM.save(LM_path)
     LM = 0
