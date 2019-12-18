@@ -94,11 +94,11 @@ def cfg():
     decoder_type = 0
     size_lat_dim = 1e6
 
-    lat_dim = 2  # 2  # 16  #
+    lat_dim = 16  #2  # 2  #
 
     # training params
 
-    is_laptop = True
+    is_laptop = False
     if is_laptop:
         batch_size = 3  # 256
         nb_lines = 5
@@ -113,7 +113,7 @@ def cfg():
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
     emb_dim = int(np.sqrt(vocab_size) + 1)
-    units = 256
+    units = 2
     del vocabulary
 
     training_params = {}
