@@ -104,7 +104,7 @@ def cfg():
         nb_lines = 1e6
         epochs = 100
 
-    do_train = True
+    do_train = False
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
