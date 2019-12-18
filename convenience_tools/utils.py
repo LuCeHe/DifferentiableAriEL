@@ -1,10 +1,8 @@
-import gzip
 import logging
 
 import nltk
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.keras.optimizers import Adam
-from tqdm import tqdm
 
 import grammar_on_transformer.dataloader as dd
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
@@ -15,23 +13,20 @@ from grammar_on_transformer.layers.transformer import Transformer
 logger = logging.getLogger(__name__)
 
 
-def sort_gzip_by_length(gzip_filepath):
-    f = gzip.open(gzip_filepath, 'rb')
+def train_language_model(train_method='transformer', **training_params):
+    if train_method == 'LSTM':
+        LM = with_lstm(**training_params)
+    elif train_method == 'LSTM with curriculum learning':
+        LM = with_lstm_curriculum_learning(**training_params)
+    elif train_method == 'transformer':
+        LM = with_transformer(**training_params)
+    else:
+        raise NotImplementedError
 
-    sentences = []
-    for line in f:
-        sentences.append(line)
-
-    sorted_sentences = sorted(sentences, key=len)
-    print(sentences)
-    print(sorted_sentences)
-    destination_path = '../data/sorted_REBER.gz'
-    with gzip.open(destination_path, mode='wt') as f:
-        for sentence in tqdm(sorted_sentences):
-            f.write(sentence.decode("utf-8") + '\r\n')
+    return LM
 
 
-def train_language_model(
+def with_lstm(
         generator,
         vocab_size,
         emb_dim,
@@ -65,7 +60,7 @@ def train_language_model(
     return LM
 
 
-def train_language_model_curriculum_learning(
+def with_lstm_curriculum_learning(
         train_gzip,
         val_gzip,
         grammar_filepath,
@@ -129,7 +124,7 @@ def train_language_model_curriculum_learning(
     return LM
 
 
-def train_language_model_transformer(
+def with_transformer(
         train_gzip,
         val_gzip,
         grammar_filepath,
@@ -156,29 +151,33 @@ def train_language_model_transformer(
         generators_params.update(
             grammar_filepath=grammar_filepath,
             batch_size=batch_size,
-            maxlen=maxlen,
-            nb_lines=nb_lines)
+            maxlen=maxlen)
 
-        # Generators
-        # train_generator = GzipToNextToken_KerasGenerator(gzip_filepath=train_gzip, **generators_params)
-        # val_generator = GzipToNextToken_KerasGenerator(gzip_filepath=val_gzip, **generators_params)
+        steps_per_epoch = int(nb_lines/batch_size)
+        train_generator = GzipToIndicesGenerator(train_gzip, **generators_params)
+        val_generator = GzipToIndicesGenerator(val_gzip, **generators_params)
 
-        train_generator = GzipToIndicesGenerator(train_gzip, grammar_filepath, batch_size, maxSentenceLen=maxlen)
-        val_generator = GzipToIndicesGenerator(val_gzip, grammar_filepath, batch_size, maxSentenceLen=maxlen)
-
-        LM.fit_generator(
-            generator=train_generator,
-            validation_data=val_generator,
+        t_object = TransformerTraining(grammar_filepath, maxlen, latentDim=2)
+        t_object.train(
+            train_generator=train_generator,
+            val_generator=val_generator,
             epochs=epochs,
-            callbacks=callbacks,
-            use_multiprocessing=False,
-            workers=1)
+            steps_per_epoch=steps_per_epoch,
+            batch_size=batch_size,
+            modelFilename='somewhere', verbose=0)
+
+
 
     except KeyboardInterrupt:
         print("Training interrupted by the user")
 
-    LM.save(LM_path)
-
+    indices = next(val_generator)
+    for i in range(10):
+        print('')
+        softmax = t_object.next_symbol_prediction(indices[i])
+        print(softmax)
+    #LM.save(LM_path)
+    LM = 0
     return LM
 
 
@@ -234,6 +233,8 @@ class TransformerTraining:
 
     def getLanguageModel(self):
         pass
+
+
 
 
 if __name__ == '__main__':

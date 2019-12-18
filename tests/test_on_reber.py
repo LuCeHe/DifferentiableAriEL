@@ -31,7 +31,7 @@ from sacred.utils import apply_backspaces_and_linefeeds
 from sacred.observers import FileStorageObserver
 # from GenericTools.SacredTools.VeryCustomSacred import CustomFileStorageObserver
 
-from DifferentiableAriEL.convenience_tools.utils import train_language_model_curriculum_learning
+from DifferentiableAriEL.convenience_tools.utils import train_language_model
 from GenericTools.LeanguageTreatmentTools.nlp import Vocabulary
 from GenericTools.StayOrganizedTools.utils import timeStructured
 
@@ -292,20 +292,11 @@ def test_on_reber(
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
     if not os.path.isfile(LM_path) or do_train:
-        """
-        LM = train_language_model(
-            generator,
-            vocab_size,
-            emb_dim,
-            epochs,
-            steps_per_epoch,
-            LM_path,
-            log_path)
-        """
-        LM = train_language_model_curriculum_learning(**training_params)
+        LM = train_language_model(train_method='transformer', **training_params)
     else:
         LM = load_model(LM_path)
 
+    """
     print('\n   Check LM   \n')
 
     generator = GzipToNextStepGenerator(val_gzip, grammar_filepath, batch_size)
@@ -334,3 +325,5 @@ def test_on_reber(
     sentences = next(generator)
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
+        
+    """
