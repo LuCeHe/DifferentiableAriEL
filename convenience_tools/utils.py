@@ -175,7 +175,7 @@ class TransformerTraining(object):
                                d_inner_hid=512,
                                n_head=8, d_k=64, d_v=64, layers=2, dropout=0.1)
         self.s2s.compile(Adam(0.001, 0.9, 0.98, epsilon=1e-9))
-        self.output_model.summary()
+        self.s2s.output_model.summary()
 
     def _generate_training_data(self, generator):
 
