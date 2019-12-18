@@ -96,7 +96,7 @@ def cfg():
 
     # training params
 
-    is_laptop = False
+    is_laptop = True
     if is_laptop:
         batch_size = 3  # 256
         nb_lines = 5
@@ -106,7 +106,7 @@ def cfg():
         nb_lines = 1e6
         epochs = 100
 
-    do_train = False
+    do_train = True
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()

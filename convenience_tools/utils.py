@@ -136,28 +136,19 @@ def with_transformer(
         nb_lines,
         LM_path,
         log_path):
-    LM = predefined_model(vocab_size, emb_dim, units)
-    LM.summary()
-    LM.compile(
-        loss='categorical_crossentropy',
-        optimizer='SGD',
-        metrics=['categorical_accuracy'])
-
-    callbacks = []
 
     maxlen = None
     try:
         generators_params = {}
         generators_params.update(
             grammar_filepath=grammar_filepath,
-            batch_size=batch_size,
-            maxlen=maxlen)
+            batch_size=batch_size)
 
-        steps_per_epoch = int(nb_lines/batch_size)
+        steps_per_epoch = int(nb_lines / batch_size)
         train_generator = GzipToIndicesGenerator(train_gzip, **generators_params)
         val_generator = GzipToIndicesGenerator(val_gzip, **generators_params)
 
-        t_object = TransformerTraining(grammar_filepath, maxlen, latentDim=2)
+        t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
         t_object.train(
             train_generator=train_generator,
             val_generator=val_generator,
@@ -176,13 +167,15 @@ def with_transformer(
         print('')
         softmax = t_object.next_symbol_prediction(indices[i])
         print(softmax)
-    #LM.save(LM_path)
+    # LM.save(LM_path)
     LM = 0
     return LM
 
 
-class TransformerTraining:
+class TransformerTraining(object):
+
     def __init___(self, grammar_filepath, maxlen, latentDim=16):
+
         # Transformer definitions
         grammar = nltk.data.load('file:' + grammar_filepath)
         generator_class = dd.sentencesFromGrammar_generator(grammar)
@@ -195,6 +188,7 @@ class TransformerTraining:
 
     def _generate_training_data(self, generator, batch_size):
         sentenceGenerator = generator(batch_size)
+
         while True:
             sentences = next(sentenceGenerator)
             indices = self.s2s.sentences2indices(sentences)
@@ -233,8 +227,6 @@ class TransformerTraining:
 
     def getLanguageModel(self):
         pass
-
-
 
 
 if __name__ == '__main__':
