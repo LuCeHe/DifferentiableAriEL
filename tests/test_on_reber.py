@@ -56,6 +56,7 @@ ex.logger = logger
 
 CDIR = os.path.dirname(os.path.realpath(__file__))
 
+CDIR_, _ = os.path.split(CDIR)
 
 @ex.config
 def cfg():
@@ -81,9 +82,10 @@ def cfg():
     LM_path = temp_folder + 'LM_model_REBER.h5'
     log_path = temp_folder + 'logs/' + time_string + '_'
 
-    grammar_filepath = '../data/simplerREBER_grammar.cfg'
-    train_gzip = os.path.join(CDIR, '../data/REBER_biased_train.gz')
-    val_gzip = os.path.join(CDIR, '../data/REBER_biased_val.gz')
+    data_dir = os.path.join(CDIR_, 'data')
+    grammar_filepath = os.path.join(data_dir,'simplerREBER_grammar.cfg')
+    train_gzip = os.path.join(data_dir, 'REBER_biased_train.gz')
+    val_gzip = os.path.join(data_dir, 'REBER_biased_val.gz')
 
     # params
 

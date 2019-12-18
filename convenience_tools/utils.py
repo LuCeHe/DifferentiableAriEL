@@ -7,7 +7,7 @@ from tensorflow.keras.optimizers import Adam
 import grammar_on_transformer.dataloader as dd
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
 from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextToken_KerasGenerator, \
-    GzipToIndicesGenerator
+    GzipToIndicesGenerator, generateFromGzip
 from grammar_on_transformer.layers.transformer import Transformer
 
 logger = logging.getLogger(__name__)
@@ -137,25 +137,21 @@ def with_transformer(
         LM_path,
         log_path):
 
-    maxlen = None
+    maxlen = 200
     try:
-        generators_params = {}
-        generators_params.update(
-            grammar_filepath=grammar_filepath,
-            batch_size=batch_size)
 
         steps_per_epoch = int(nb_lines / batch_size)
-        train_generator = GzipToIndicesGenerator(train_gzip, **generators_params)
-        val_generator = GzipToIndicesGenerator(val_gzip, **generators_params)
+        train_generator = generateFromGzip(train_gzip, batch_size)
+        val_generator = generateFromGzip(val_gzip, batch_size)
 
         t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
-        t_object.train(
-            train_generator=train_generator,
-            val_generator=val_generator,
-            epochs=epochs,
-            steps_per_epoch=steps_per_epoch,
-            batch_size=batch_size,
-            modelFilename='somewhere', verbose=0)
+        #t_object.train(
+        #    train_generator=train_generator,
+        #    val_generator=val_generator,
+        #    epochs=epochs,
+        #    steps_per_epoch=steps_per_epoch,
+        #    batch_size=batch_size,
+        #    modelFilename='somewhere', verbose=0)
 
 
 
@@ -165,7 +161,8 @@ def with_transformer(
     indices = next(val_generator)
     for i in range(10):
         print('')
-        softmax = t_object.next_symbol_prediction(indices[i])
+        print(indices[i])
+        softmax = t_object.s2s.next_symbol_prediction(indices[i][:-2])
         print(softmax)
     # LM.save(LM_path)
     LM = 0
@@ -174,7 +171,7 @@ def with_transformer(
 
 class TransformerTraining(object):
 
-    def __init___(self, grammar_filepath, maxlen, latentDim=16):
+    def __init__(self, grammar_filepath, maxlen, latentDim=16):
 
         # Transformer definitions
         grammar = nltk.data.load('file:' + grammar_filepath)
@@ -186,11 +183,10 @@ class TransformerTraining(object):
                                n_head=8, d_k=64, d_v=64, layers=2, dropout=0.1)
         self.s2s.compile(Adam(0.001, 0.9, 0.98, epsilon=1e-9))
 
-    def _generate_training_data(self, generator, batch_size):
-        sentenceGenerator = generator(batch_size)
+    def _generate_training_data(self, generator):
 
         while True:
-            sentences = next(sentenceGenerator)
+            sentences = next(generator)
             indices = self.s2s.sentences2indices(sentences)
 
             input_indices = indices[:, :-1]
@@ -207,8 +203,8 @@ class TransformerTraining(object):
         callbacks = []
 
         try:
-            train_generator = self._generateTrainingData(train_generator, batch_size)
-            val_generator = self._generateTrainingData(val_generator, batch_size)
+            train_generator = self._generate_training_data(train_generator)
+            val_generator = self._generate_training_data(val_generator)
             self.s2s.model.fit_generator(train_generator,
                                          epochs=epochs,
                                          steps_per_epoch=steps_per_epoch,
@@ -218,12 +214,11 @@ class TransformerTraining(object):
                                          shuffle=False,
                                          verbose=verbose,
                                          callbacks=callbacks)
-            self.model.summary()
 
         except KeyboardInterrupt:
             logger.info("Training interrupted by the user")
 
-        self.model.save_weights(modelFilename)
+        self.s2s.output_model.save_weights(modelFilename)
 
     def getLanguageModel(self):
         pass
