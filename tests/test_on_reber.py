@@ -279,13 +279,15 @@ def checkTrainingReconstruction(
 
 @ex.automain
 def test_on_reber(
-        gzip_filepath, grammar_filepath, batch_size,
+        train_gzip,
+        val_gzip,
+        grammar_filepath,
+        batch_size,
         LM_path,
         epochs,
         training_params,
         do_train,
         _log):
-
 
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
@@ -306,7 +308,7 @@ def test_on_reber(
 
     print('\n   Check LM   \n')
 
-    generator = GzipToNextStepGenerator(gzip_filepath, grammar_filepath, batch_size)
+    generator = GzipToNextStepGenerator(val_gzip, grammar_filepath, batch_size)
 
     batch = next(generator)
     output = LM.predict(batch[0])
@@ -328,7 +330,7 @@ def test_on_reber(
 
     print('\n   Check AriEL Training Data Reconstruction   \n')
 
-    generator = GzipToIndicesGenerator(gzip_filepath, grammar_filepath, batch_size)
+    generator = GzipToIndicesGenerator(val_gzip, grammar_filepath, batch_size)
     sentences = next(generator)
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
