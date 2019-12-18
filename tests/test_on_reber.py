@@ -65,7 +65,7 @@ def cfg():
     # GPU setting
 
     GPU = 1
-    GPU_fraction = .80
+    GPU_fraction = .90
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU)
@@ -104,7 +104,7 @@ def cfg():
         nb_lines = 5
         epochs = 10
     else:
-        batch_size = 256
+        batch_size = 128
         nb_lines = 1e6
         epochs = 100
 

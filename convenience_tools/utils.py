@@ -137,25 +137,19 @@ def with_transformer(
         LM_path,
         log_path):
     maxlen = 200
-    try:
+    steps_per_epoch = int(nb_lines / batch_size)
+    train_generator = generateFromGzip(train_gzip, batch_size)
+    val_generator = generateFromGzip(val_gzip, batch_size)
 
-        steps_per_epoch = int(nb_lines / batch_size)
-        train_generator = generateFromGzip(train_gzip, batch_size)
-        val_generator = generateFromGzip(val_gzip, batch_size)
+    t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
+    t_object.train(
+        train_generator=train_generator,
+        val_generator=val_generator,
+        epochs=epochs,
+        steps_per_epoch=steps_per_epoch,
+        batch_size=batch_size,
+        modelFilename='somewhere', verbose=0)
 
-        t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
-        t_object.train(
-            train_generator=train_generator,
-            val_generator=val_generator,
-            epochs=epochs,
-            steps_per_epoch=steps_per_epoch,
-            batch_size=batch_size,
-            modelFilename='somewhere', verbose=0)
-
-
-
-    except KeyboardInterrupt:
-        print("Training interrupted by the user")
 
     indices = next(val_generator)
     for frase in indices:
@@ -181,6 +175,7 @@ class TransformerTraining(object):
                                d_inner_hid=512,
                                n_head=8, d_k=64, d_v=64, layers=2, dropout=0.1)
         self.s2s.compile(Adam(0.001, 0.9, 0.98, epsilon=1e-9))
+        self.output_model.summary()
 
     def _generate_training_data(self, generator):
 
@@ -220,7 +215,7 @@ class TransformerTraining(object):
         self.s2s.output_model.save_weights(modelFilename)
 
     def getLanguageModel(self):
-        pass
+        return self.s2s.output_model
 
 
 if __name__ == '__main__':
