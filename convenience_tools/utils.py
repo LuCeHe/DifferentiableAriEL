@@ -148,7 +148,7 @@ def with_transformer(
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         batch_size=batch_size,
-        modelFilename='somewhere', verbose=0)
+        modelFilename='somewhere', verbose=1)
 
 
     indices = next(val_generator)
