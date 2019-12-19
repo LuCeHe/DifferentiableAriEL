@@ -105,7 +105,7 @@ def cfg():
         epochs = 2
     else:
         maxlen = 200
-        batch_size = 64
+        batch_size = 32
         nb_lines = 1e6
         epochs = 1 #100
 
@@ -115,6 +115,7 @@ def cfg():
     vocab_size = vocabulary.getMaxVocabularySize()
     emb_dim = int(np.sqrt(vocab_size) + 1)
     units = 8
+
     del vocabulary
 
     training_params = {}
@@ -328,4 +329,3 @@ def test_on_reber(
     sentences = next(generator)
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
-        
