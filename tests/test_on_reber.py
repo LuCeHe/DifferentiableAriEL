@@ -104,7 +104,7 @@ def cfg():
         nb_lines = 5
         epochs = 10
     else:
-        batch_size = 64
+        batch_size = 128
         nb_lines = 1e6
         epochs = 100
 
@@ -113,7 +113,7 @@ def cfg():
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
     emb_dim = int(np.sqrt(vocab_size) + 1)
-    units = 2
+    units = 16
     del vocabulary
 
     training_params = {}
