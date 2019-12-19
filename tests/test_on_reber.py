@@ -97,19 +97,20 @@ def cfg():
 
     # training params
 
-    is_laptop = False
+    train_method = 'transformer'  #'LSTM'   #
+    do_train = True
+    is_laptop = True
     if is_laptop:
-        maxlen = 5
+        maxlen = 100
         batch_size = 3  # 256
         nb_lines = 5
-        epochs = 2
+        epochs = 0
     else:
         maxlen = 200
         batch_size = 32
         nb_lines = 1e6
         epochs = 1 #100
 
-    do_train = True
 
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
@@ -291,11 +292,12 @@ def test_on_reber(
         epochs,
         training_params,
         do_train,
+        train_method,
         _log):
 
     # FIXME: it's cool that it is learning but it doesn't
     # seem to be learning enough
-    if not os.path.isfile(LM_path) or do_train:
+    if do_train:
         LM = train_language_model(train_method='transformer', **training_params)
     else:
         LM = load_model(LM_path)
