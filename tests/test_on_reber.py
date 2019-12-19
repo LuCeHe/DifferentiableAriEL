@@ -98,7 +98,7 @@ def cfg():
 
     # training params
 
-    is_laptop = False
+    is_laptop = True
     if is_laptop:
         batch_size = 3  # 256
         nb_lines = 5

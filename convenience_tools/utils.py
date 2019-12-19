@@ -1,5 +1,5 @@
 import logging
-
+import numpy as np
 import nltk
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.keras.optimizers import Adam
@@ -8,7 +8,7 @@ import grammar_on_transformer.dataloader as dd
 from GenericTools.KerasTools.convenience_layers import predefined_model
 from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextToken_KerasGenerator, \
     generateFromGzip
-from grammar_on_transformer.layers.transformer import Transformer
+from grammar_on_transformer.layers.transformer import Transformer, output2nextsymbol
 
 logger = logging.getLogger(__name__)
 
@@ -142,13 +142,14 @@ def with_transformer(
     val_generator = generateFromGzip(val_gzip, batch_size)
 
     t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
+    """
     t_object.train(
         train_generator=train_generator,
         val_generator=val_generator,
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         batch_size=batch_size,
-        modelFilename='somewhere', verbose=1)
+        modelFilename='output_model.h5', verbose=1)
 
 
     indices = next(val_generator)
@@ -158,8 +159,9 @@ def with_transformer(
         softmax = t_object.s2s.next_symbol_prediction(input_seq)
         print(softmax)
     # LM.save(LM_path)
-    LM = 0
+    LM = t_object.getLanguageModel()
     return LM
+    """
 
 
 class TransformerTraining(object):
@@ -171,11 +173,16 @@ class TransformerTraining(object):
         generator_class = dd.sentencesFromGrammar_generator(grammar)
         itokens = generator_class.itokens
 
-        self.s2s = Transformer(itokens, itokens, len_limit=maxlen, d_model=latentDim,
-                               d_inner_hid=512,
-                               n_head=8, d_k=64, d_v=64, layers=2, dropout=0.1)
+        self.s2s = Transformer(itokens, itokens, len_limit=maxlen, d_model=latentDim)
         self.s2s.compile(Adam(0.001, 0.9, 0.98, epsilon=1e-9))
         self.s2s.output_model.summary()
+
+        self.nextsymbol_model = output2nextsymbol(self.s2s.output_model)
+
+        mock_batch = np.random.randint(4, size=(3, 5))
+        mock_prediction = self.nextsymbol_model.predict(mock_batch)
+        print(mock_prediction)
+        print(mock_prediction.shape)
 
     def _generate_training_data(self, generator):
 
@@ -215,7 +222,7 @@ class TransformerTraining(object):
         self.s2s.output_model.save_weights(modelFilename)
 
     def getLanguageModel(self):
-        return self.s2s.output_model
+        return self.nextsymbol_model
 
 
 if __name__ == '__main__':
