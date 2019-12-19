@@ -4,14 +4,17 @@ import numpy as np
 import tensorflow as tf
 from prettytable import PrettyTable
 
+from GenericTools.KerasTools.convenience_layers import predefined_model, ExpandDims, Slice
+from GenericTools.TFTools.convenience_operations import dynamic_fill, slice_, dynamic_zeros, dynamic_ones, \
+    dynamic_filler, replace_column, slice_from_to
+
 tf.compat.v1.disable_eager_execution()
 import tensorflow.keras.backend as K
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN
 
-from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, dynamic_ones, dynamic_fill, dynamic_filler, \
-    dynamic_zeros, replace_column, slice_from_to, tf_update_bounds_encoder
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import ExpandDims, Slice, predefined_model, UpdateBoundsEncoder
+from DifferentiableAriEL.nnets.tf_tools.tf_helpers import tf_update_bounds_encoder
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import UpdateBoundsEncoder
 
 np.random.seed(1)
 tf.set_random_seed(2)
@@ -26,7 +29,7 @@ def DAriEL_Encoder_model(vocab_size=101,
                          language_model=None,
                          maxlen=6,
                          PAD=None):
-    layer = DAriEL_Encoder_Layer_0(vocab_size=vocab_size, emb_dim=emb_dim,
+    layer = ArielEncoderLayer0(vocab_size=vocab_size, emb_dim=emb_dim,
                                    lat_dim=lat_dim, language_model=language_model,
                                    maxlen=maxlen, PAD=PAD)
     input_questions = Input(shape=(None,), name='question')

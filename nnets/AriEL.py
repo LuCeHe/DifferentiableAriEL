@@ -16,7 +16,7 @@ from DifferentiableAriEL.nnets.AriEL_decoder import ArielDecoderLayer0, ArielDec
     ArielDecoderLayer2
 from DifferentiableAriEL.nnets.AriEL_encoder import ArielEncoderLayer0, ArielEncoderLayer1, \
     ArielEncoderLayer2
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
+from GenericTools.KerasTools.convenience_layers import predefined_model
 
 tf.compat.v1.disable_eager_execution()
 

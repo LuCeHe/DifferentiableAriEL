@@ -5,15 +5,16 @@ import tensorflow as tf
 from numpy.random import seed
 from prettytable import PrettyTable
 
+from DifferentiableAriEL.tests.tests import random_sequences_and_points
+from GenericTools.KerasTools.convenience_layers import predefined_model, ExpandDims, Slice, ReplaceColumn
+from GenericTools.TFTools.convenience_operations import replace_column, dynamic_filler, clip_layer, slice_
+
 tf.compat.v1.disable_eager_execution()
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN, RepeatVector
-import tensorflow.keras.backend as K
 
-from DifferentiableAriEL.nnets.tf_tools.tf_helpers import slice_, clip_layer, dynamic_filler, pzToSymbolAndZ, \
-    replace_column
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model, UpdateBoundsDecoder, ExpandDims, \
-    Slice, FindSymbolAndBounds, ReplaceColumn
+from DifferentiableAriEL.nnets.tf_tools.tf_helpers import pzToSymbolAndZ
+from DifferentiableAriEL.nnets.tf_tools.keras_layers import UpdateBoundsDecoder, FindSymbolAndBounds
 
 seed(3)
 tf.set_random_seed(2)
@@ -304,13 +305,14 @@ def test():
     _, points = random_sequences_and_points(batch_size=10, lat_dim=lat_dim)
     points = size_lat_dim * points
 
-    decoder = DAriEL_Decoder_Layer_2(vocab_size=vocab_size,
-                                     lat_dim=lat_dim,
-                                     maxlen=maxlen,
-                                     output_type='both',
-                                     language_model=LM,
-                                     size_lat_dim=size_lat_dim,
-                                     PAD=PAD)
+    decoder = ArielDecoderLayer2(
+        vocab_size=vocab_size,
+        lat_dim=lat_dim,
+        maxlen=maxlen,
+        output_type='both',
+        language_model=LM,
+        size_lat_dim=size_lat_dim,
+        PAD=PAD)
 
     input_point = Input(shape=(lat_dim,), name='question')
     point = decoder(input_point)

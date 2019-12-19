@@ -56,8 +56,8 @@ from tensorflow.keras.layers import Dense, concatenate, Input, Conv2D, Embedding
 from tensorflow.keras.models import load_model                        
 from tensorflow.keras.utils import to_categorical
 
-from nnets.DAriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL, \
-    predefined_model, DAriEL_Encoder_Layer, DAriEL_Decoder_Layer
+#from DifferentiableAriEL.nnets.AriEL import DAriEL_Encoder_model, DAriEL_Decoder_model, Differentiable_AriEL, \
+#    predefined_model, DAriEL_Encoder_Layer, DAriEL_Decoder_Layer
 
 # TODO: move to unittest type of test
 

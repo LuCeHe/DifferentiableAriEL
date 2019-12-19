@@ -5,7 +5,7 @@ from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.keras.optimizers import Adam
 
 import grammar_on_transformer.dataloader as dd
-from DifferentiableAriEL.nnets.tf_tools.keras_layers import predefined_model
+from GenericTools.KerasTools.convenience_layers import predefined_model
 from GenericTools.LeanguageTreatmentTools.sentence_generators import GzipToNextToken_KerasGenerator, \
     generateFromGzip
 from grammar_on_transformer.layers.transformer import Transformer

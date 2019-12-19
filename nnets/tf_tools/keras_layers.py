@@ -1,6 +1,5 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
-
 from tensorflow.python.keras.engine.base_layer import Layer
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import pzToSymbol_withArgmax, tf_update_bounds_encoder
@@ -85,7 +84,6 @@ class SelfAdjustingGaussianNoise(Layer):
 """
 
 
-
 class UpdateBoundsEncoder(Layer):
 
     def __init__(self, lat_dim, vocab_size, curDim, **kwargs):
@@ -156,4 +154,3 @@ class FindSymbolAndBounds(Layer):
         upp_bound = replace_column(upp_bound, new_U_column, self.curDim)
 
         return [s, low_bound, upp_bound]
-
