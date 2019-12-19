@@ -187,7 +187,7 @@ class TransformerTraining(object):
         while True:
             sentences = next(generator)
             indices = self.s2s.sentences2indices(sentences)
-
+            print(sentences)
             input_indices = indices[:, :-1]
             output_indices = indices[:, 1:]
 
