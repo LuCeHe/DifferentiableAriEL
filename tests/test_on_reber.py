@@ -104,7 +104,7 @@ def cfg():
         nb_lines = 5
         epochs = 10
     else:
-        batch_size = 128
+        batch_size = 64
         nb_lines = 1e6
         epochs = 1 #100
 
