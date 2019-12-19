@@ -142,7 +142,6 @@ def with_transformer(
     val_generator = generateFromGzip(val_gzip, batch_size)
 
     t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
-    """
     t_object.train(
         train_generator=train_generator,
         val_generator=val_generator,
@@ -161,7 +160,6 @@ def with_transformer(
     # LM.save(LM_path)
     LM = t_object.getLanguageModel()
     return LM
-    """
 
 
 class TransformerTraining(object):

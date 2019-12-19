@@ -89,7 +89,6 @@ def cfg():
 
     # params
 
-    maxlen = 200
     encoder_type = 0
     decoder_type = 0
     size_lat_dim = 1e6
@@ -98,12 +97,14 @@ def cfg():
 
     # training params
 
-    is_laptop = True
+    is_laptop = False
     if is_laptop:
+        maxlen = 5
         batch_size = 3  # 256
         nb_lines = 5
-        epochs = 10
+        epochs = 2
     else:
+        maxlen = 200
         batch_size = 64
         nb_lines = 1e6
         epochs = 1 #100
@@ -113,7 +114,7 @@ def cfg():
     vocabulary = Vocabulary.fromGrammarFile(grammar_filepath)
     vocab_size = vocabulary.getMaxVocabularySize()
     emb_dim = int(np.sqrt(vocab_size) + 1)
-    units = 16
+    units = 8
     del vocabulary
 
     training_params = {}
@@ -298,7 +299,7 @@ def test_on_reber(
     else:
         LM = load_model(LM_path)
 
-    """
+
     print('\n   Check LM   \n')
 
     generator = GzipToNextStepGenerator(val_gzip, grammar_filepath, batch_size)
@@ -328,4 +329,3 @@ def test_on_reber(
     for LanMod in [None, LM]:
         checkTrainingReconstruction(LM=LanMod, sentences=sentences)
         
-    """
