@@ -1,6 +1,7 @@
 import logging
-import numpy as np
+
 import nltk
+import numpy as np
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 from tensorflow.keras.optimizers import Adam
 
@@ -150,7 +151,6 @@ def with_transformer(
         batch_size=batch_size,
         modelFilename='output_model.h5', verbose=1)
 
-
     indices = next(val_generator)
     for frase in indices:
         print('')
@@ -201,9 +201,11 @@ class TransformerTraining(object):
 
         callbacks = []
 
+        print('hey')
         try:
             train_generator = self._generate_training_data(train_generator)
             val_generator = self._generate_training_data(val_generator)
+            print('here')
             self.s2s.model.fit_generator(train_generator,
                                          epochs=epochs,
                                          steps_per_epoch=steps_per_epoch,
@@ -213,6 +215,7 @@ class TransformerTraining(object):
                                          shuffle=False,
                                          verbose=verbose,
                                          callbacks=callbacks)
+            print('and here')
 
         except KeyboardInterrupt:
             logger.info("Training interrupted by the user")
