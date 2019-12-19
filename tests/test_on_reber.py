@@ -106,7 +106,7 @@ def cfg():
     else:
         batch_size = 128
         nb_lines = 1e6
-        epochs = 100
+        epochs = 1 #100
 
     do_train = True
 
