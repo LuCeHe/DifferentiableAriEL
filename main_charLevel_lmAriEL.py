@@ -56,7 +56,7 @@ grammar = CFG.fromstring("""
                          """)
 
 
-grammar = nltk.data.load('data/word_grammar.cfg')
+grammar = nltk.data.load('data/house_questions_grammar.cfg')
 vocab_size = 36  # this value is going to be overwriter after the sentences generator
 maxlen = 46  #23
 batch_size = 128
