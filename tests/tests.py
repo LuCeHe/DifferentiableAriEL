@@ -37,7 +37,7 @@ numpy.set_printoptions(threshold=sys.maxsize, suppress=True, precision=3)
 import time 
 import matplotlib
 from tensorflow.keras.callbacks import TensorBoard
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from prettytable import PrettyTable
 import numpy as np
