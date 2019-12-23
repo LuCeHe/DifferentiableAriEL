@@ -149,7 +149,7 @@ def with_transformer(
         epochs=epochs,
         steps_per_epoch=steps_per_epoch,
         batch_size=batch_size,
-        modelFilename='output_model.h5', verbose=1)
+        model_filename='output_model.h5', verbose=1)
 
     indices = next(val_generator)
     for frase in indices:
@@ -197,7 +197,7 @@ class TransformerTraining(object):
               epochs,
               steps_per_epoch=32,
               batch_size=32,
-              modelFilename=None, verbose=1):
+              model_filename=None, verbose=1):
 
         callbacks = []
 
@@ -220,7 +220,7 @@ class TransformerTraining(object):
         except KeyboardInterrupt:
             logger.info("Training interrupted by the user")
 
-        self.s2s.output_model.save_weights(modelFilename)
+        self.s2s.output_model.save_weights(model_filename)
 
     def getLanguageModel(self):
         return self.nextsymbol_model
