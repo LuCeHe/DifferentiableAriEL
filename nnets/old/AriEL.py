@@ -59,7 +59,7 @@ class SentenceEmbedding(object):
     def getDecoder(self):
         raise NotImplementedError()
 
-    def interpolate(self, sentence1, sentence2, nb_samples=10, removeDuplicates=False):
+    def interpolate(self, sentence1, sentence2, nb_samples_test=10, removeDuplicates=False):
         # Encode sentences
         encoder = self.getEncoder()
         code1 = np.array(encoder.encode(sentence1))
@@ -67,7 +67,7 @@ class SentenceEmbedding(object):
 
         interpolations = []
         decoder = self.getDecoder()
-        for x in np.linspace(0, 1, nb_samples):
+        for x in np.linspace(0, 1, nb_samples_test):
             c = x * code2 + (1 - x) * code1
             sentence = decoder.decode(c)
             if (not removeDuplicates or
@@ -76,7 +76,7 @@ class SentenceEmbedding(object):
                 interpolations.append(sentence)
         return interpolations
 
-    def coverage(self, grammar, stochastic=False, nb_samples=None):
+    def coverage(self, grammar, stochastic=False, nb_samples_test=None):
 
         encoder = self.getEncoder()
         decoder = self.getDecoder()
@@ -86,10 +86,10 @@ class SentenceEmbedding(object):
 
         if stochastic:
             # Stochastic sampling of the grammar
-            if nb_samples is None:
+            if nb_samples_test is None:
                 raise Exception('The number of samples must be specified in stochastic sampling mode!')
             sampler = NltkGrammarSampler(grammar)
-            for _ in range(nb_samples):
+            for _ in range(nb_samples_test):
                 for sentence in sampler.generate(1):
                     code = encoder.encode(sentence)
                     recons = decoder.decode(code)
@@ -99,7 +99,7 @@ class SentenceEmbedding(object):
         else:
             # Depth-first search of the grammar
             from nltk.parse.generate import generate
-            for tokens in generate(grammar, n=nb_samples):
+            for tokens in generate(grammar, n=nb_samples_test):
                 sentence = ' '.join(tokens)
                 code = encoder.encode(sentence)
                 recons = decoder.decode(code)
