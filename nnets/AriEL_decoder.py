@@ -38,7 +38,7 @@ def ArielDecoderLayer1(
                              maxlen=maxlen,
                              language_model=language_model,
                              PAD=PAD)
-    rnn = RNN([cell], return_sequences=True, return_state=True, name='AriEL_decoder')
+    rnn = RNN([cell], return_sequences=False, return_state=True, name='AriEL_decoder')
 
     input_point = Input(shape=(lat_dim,), name='point')
     point = RepeatVector(maxlen)(input_point)
