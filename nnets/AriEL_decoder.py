@@ -290,8 +290,18 @@ class ArielDecoderLayer2(object):
             if curDim >= self.lat_dim:
                 curDim = 0
 
-        sentence_layer = Slice(1, 1, self.maxlen + 1)(sentence_layer)
-        return sentence_layer
+        sentence_layer = Slice(1, 0, self.maxlen + 1)(sentence_layer)
+        
+        if self.output_type == 'tokens':
+            output = sentence_layer
+        elif self.output_type == 'softmaxes':
+            output = softmax
+        elif self.output_type == 'both':
+            output = [sentence_layer, softmax]
+        else:
+            raise ValueError('the output_type specified is not implemented!')
+
+        return output
 
 
 def test():

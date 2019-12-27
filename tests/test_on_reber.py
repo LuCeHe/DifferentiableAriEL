@@ -98,7 +98,7 @@ def cfg():
     # training params
 
     train_method = 'transformer'  #'LSTM'   #
-    do_train = True
+    do_train = False
     is_laptop = True
     if is_laptop:
         maxlen = 100
