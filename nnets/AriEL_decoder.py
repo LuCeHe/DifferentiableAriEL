@@ -261,7 +261,7 @@ class ArielDecoderLayer2(object):
             input_point)
 
         # by clipping the values, it can accept inputs that go beyond the 
-        # unit hyper-cube
+        # latent hyper-cube
         unfolding_point = Lambda(clip_layer, arguments={'min_value': 0., 'max_value': self.size_lat_dim})(
             input_point)  # Clip(0., 1.)(input_point)
 
@@ -275,8 +275,6 @@ class ArielDecoderLayer2(object):
             s_0toj = Slice(1, 0, j + 1)(sentence_layer)
             softmax = self.language_model(s_0toj)
 
-            # output.extend([low_bound])
-
             Ls, Us = UpdateBoundsDecoder(curDim)([low_bound, upp_bound, softmax])
             s, low_bound, upp_bound = FindSymbolAndBounds(self.vocab_size, curDim)(
                 [Ls, Us, low_bound, upp_bound, input_point])
@@ -284,7 +282,6 @@ class ArielDecoderLayer2(object):
             sentence_layer = ReplaceColumn(j + 1)([sentence_layer, s])
             sentence_layer.set_shape((None, self.maxlen + 1))
 
-            # output.extend([low_bound])
             # NOTE: at each iteration, change the dimension
             curDim += 1
             if curDim >= self.lat_dim:
