@@ -46,9 +46,9 @@ logger = logging.getLogger(__name__)
 
 class SentenceEmbedding(object):
 
-    def __init__(self, vocabulary, latentDim):
-        self.__dict__.update(vocabulary=vocabulary, latentDim=latentDim)
-        self._init_args = (vocabulary, latentDim)
+    def __init__(self, vocabulary, latent_dim):
+        self.__dict__.update(vocabulary=vocabulary, latent_dim=latent_dim)
+        self._init_args = (vocabulary, latent_dim)
 
     def __getinitargs__(self):
         return self._init_args

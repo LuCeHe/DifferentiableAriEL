@@ -142,7 +142,7 @@ def with_transformer(
     train_generator = generateFromGzip(train_gzip, batch_size)
     val_generator = generateFromGzip(val_gzip, batch_size)
 
-    t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latentDim=units)
+    t_object = TransformerTraining(grammar_filepath=grammar_filepath, maxlen=maxlen, latent_dim=units)
     t_object.train(
         train_generator=train_generator,
         val_generator=val_generator,
@@ -164,14 +164,14 @@ def with_transformer(
 
 class TransformerTraining(object):
 
-    def __init__(self, grammar_filepath, maxlen, latentDim=16):
+    def __init__(self, grammar_filepath, maxlen, latent_dim=16):
 
         # Transformer definitions
         grammar = nltk.data.load('file:' + grammar_filepath)
         generator_class = dd.sentencesFromGrammar_generator(grammar)
         itokens = generator_class.itokens
 
-        self.s2s = Transformer(itokens, itokens, len_limit=maxlen, d_model=latentDim)
+        self.s2s = Transformer(itokens, itokens, len_limit=maxlen, d_model=latent_dim)
         self.s2s.compile(Adam(0.001, 0.9, 0.98, epsilon=1e-9))
         self.s2s.output_model.summary()
 
