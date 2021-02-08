@@ -5,7 +5,7 @@ import tensorflow as tf
 from prettytable import PrettyTable
 
 from GenericTools.KerasTools.convenience_layers import predefined_model, ExpandDims, Slice
-from GenericTools.TFTools.convenience_operations import dynamic_fill, slice_, dynamic_zeros, dynamic_ones, \
+from GenericTools.KerasTools.convenience_operations import dynamic_fill, slice_, dynamic_zeros, dynamic_ones, \
     dynamic_filler, replace_column, slice_from_to
 
 tf.compat.v1.disable_eager_execution()

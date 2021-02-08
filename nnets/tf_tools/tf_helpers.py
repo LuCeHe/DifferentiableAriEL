@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.python.framework import function
 
-from GenericTools.TFTools.convenience_operations import dynamic_one_hot, dynamic_ones
+from GenericTools.KerasTools.convenience_operations import dynamic_one_hot, dynamic_ones
 
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)

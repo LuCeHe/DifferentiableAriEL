@@ -3,7 +3,7 @@ import tensorflow.keras.backend as K
 from tensorflow.python.keras.engine.base_layer import Layer
 
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import pzToSymbol_withArgmax, tf_update_bounds_encoder
-from GenericTools.TFTools.convenience_operations import replace_column
+from GenericTools.KerasTools.convenience_operations import replace_column
 
 """
 class TestActiveGaussianNoise(Layer):
