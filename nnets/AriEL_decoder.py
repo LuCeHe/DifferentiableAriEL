@@ -6,7 +6,7 @@ from numpy.random import seed
 from prettytable import PrettyTable
 
 from DifferentiableAriEL.tests.tests import random_sequences_and_points
-from GenericTools.KerasTools.convenience_layers import predefined_model, ExpandDims, Slice, ReplaceColumn
+from GenericTools.KerasTools.esoteric_layers.convenience_layers import predefined_model, ExpandDims, Slice, ReplaceColumn
 from GenericTools.KerasTools.convenience_operations import replace_column, dynamic_filler, clip_layer, slice_
 
 tf.compat.v1.disable_eager_execution()

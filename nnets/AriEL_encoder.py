@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from prettytable import PrettyTable
 
-from GenericTools.KerasTools.convenience_layers import predefined_model, ExpandDims, Slice
+from GenericTools.KerasTools.esoteric_layers.convenience_layers import predefined_model, ExpandDims, Slice
 from GenericTools.KerasTools.convenience_operations import dynamic_fill, slice_, dynamic_zeros, dynamic_ones, \
     dynamic_filler, replace_column, slice_from_to
 
