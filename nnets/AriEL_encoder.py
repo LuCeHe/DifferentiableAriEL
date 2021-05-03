@@ -16,9 +16,6 @@ from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import tf_update_bounds_encoder
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import UpdateBoundsEncoder
 
-np.random.seed(1)
-tf.set_random_seed(2)
-
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 

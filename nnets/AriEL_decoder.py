@@ -16,9 +16,6 @@ from tensorflow.keras.layers import Input, Lambda, Concatenate, Layer, RNN, Repe
 from DifferentiableAriEL.nnets.tf_tools.tf_helpers import pzToSymbolAndZ
 from DifferentiableAriEL.nnets.tf_tools.keras_layers import UpdateBoundsDecoder, FindSymbolAndBounds
 
-seed(3)
-tf.set_random_seed(2)
-
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
