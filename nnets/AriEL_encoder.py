@@ -239,7 +239,7 @@ class ArielEncoderCell2(Layer):
                  size_lat_dim=3,
                  PAD=None,
                  **kwargs):
-        super(ArielEncoderCell2, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.__dict__.update(vocab_size=vocab_size,
                              emb_dim=emb_dim,
